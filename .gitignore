@@ -1,0 +1,10 @@
+cabal-dev/
+*.o
+*.o_p
+*.hi
+dist
+*.swp
+*.swo
+client_session_key.aes
+yesod/foobar/
+
