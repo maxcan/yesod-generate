@@ -1,0 +1,10 @@
+<h1>
+  Showing all Foos
+<dl
+  $forall foo <- allFoos
+    <dt
+      bar :: Text
+    <dl
+      #{show foo}
+
+
