@@ -1,0 +1,63 @@
+name:            yesod-generate
+version:         0.1
+license:         BSD3
+license-file:    LICENSE
+author:          Max Cantor <i@cantor.mx>
+maintainer:      Max Cantor <i@cantor.mx>
+synopsis:        Rails-style generators for yesod
+description:
+category:        Web, Yesod
+stability:       Stable
+cabal-version:   >= 1.6
+build-type:      Simple
+homepage:        http://github.com/maxcan/yesod-generate
+
+extra-source-files:
+  input/*.cg
+  scaffold/templates/default-layout.lucius.cg
+  scaffold/templates/homepage.lucius.cg
+  scaffold/messages/en.msg.cg
+  scaffold/Settings.hs.cg
+  scaffold/Settings/StaticFiles.hs.cg
+  scaffold/static/js/modernizr.js.cg
+
+
+flag ghc7
+
+flag threaded
+    default: True
+    description: Build with support for multithreaded execution
+
+library
+    if flag(ghc7)
+        build-depends:   base                  >= 4.3      && < 5
+        cpp-options:     -DGHC7
+    else
+        build-depends:   base                  >= 4        && < 4.3
+    build-depends:   yesod-core                >= 0.10.1   && < 0.11
+                   , yesod-auth                >= 0.8.1    && < 0.9
+    exposed-modules: Yesod
+    ghc-options:     -Wall
+
+executable             yesod
+    if flag(ghc7)
+        build-depends:   base                  >= 4.3      && < 5
+        cpp-options:     -DGHC7
+    else
+        build-depends:   base                  >= 4        && < 4.3
+    if os(windows)
+        cpp-options:     -DWINDOWS
+    build-depends:     parsec             >= 2.1          && < 4
+                     , text               >= 0.11         && < 0.12
+    ghc-options:       -Wall
+    if flag(threaded)
+        ghc-options:    -threaded
+    main-is:           main.hs
+    other-modules:     Scaffolding.CodeGen
+                       Scaffolding.Scaffolder
+                       Devel
+                       Build
+
+source-repository head
+  type:     git
+  location: https://github.com/maxcan/yesod-generate
