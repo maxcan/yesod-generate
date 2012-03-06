@@ -97,27 +97,36 @@ makeFields :: [Text] -> ErrT [FieldDesc]
 makeFields l = mapM (\t -> checkRes (parse parseField t)) l
  where
   checkRes (Done _ r) = return r
-  checkRes _ = throwError "parse error"
+  checkRes (Partial f) = checkRes $  f DT.empty 
+  checkRes r = throwError $ "parse error: " ++ show r
 
 parseField :: Parser FieldDesc
 parseField = do
   -- require a lowercase field name
-  skipSpace
   fldName <- DT.cons <$> satisfy DC.isLower <*> Data.Attoparsec.Text.takeWhile isValidFieldChar
   string "::"
-  fldTypeName <- DT.cons <$> satisfy DC.isUpper <*> Data.Attoparsec.Text.takeWhile isValidTypeChar
+  (fldTypeName, nullable) <- parseNonNullable <|> parseNullable
   case textToFieldType fldTypeName of
     Left e -> error $ DT.unpack e
-    Right fldTypeVal -> return $ FieldDesc  fldName fldTypeVal False
-      
-  
+    Right fldTypeVal -> return $ FieldDesc  fldName fldTypeVal nullable
  where
+  parseType = DT.cons <$> satisfy DC.isUpper <*> Data.Attoparsec.Text.takeWhile isValidTypeChar
+  parseNonNullable = do
+    fldTypeName <- parseType
+    endOfInput
+    return (fldTypeName, False)
+  parseNullable = do
+    fldTypeName <- parseType
+    _ <- char '?'
+    endOfInput
+    return (fldTypeName, True)
   isValidTypeChar = isValidFieldChar
   isValidFieldChar c = any ($ c) [DC.isAlphaNum, (== '_')]
 
   
 -- | _TODO whip up some parsec to parse fieldName::Int? stuff the record below
 data FieldDesc = FieldDesc { fdName :: Text , fdType :: FieldType , fdNullable :: Bool } 
+  deriving (Show)
 
 data FieldType 
   = PersistReference Text
@@ -127,6 +136,7 @@ data FieldType
   | FtText
   | FtHtml
   | FtDouble
+  deriving (Show)
 
 textToFieldType :: Text -> Either Text FieldType
 textToFieldType "Int" = Right FtInt
