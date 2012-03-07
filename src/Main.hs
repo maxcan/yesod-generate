@@ -11,7 +11,7 @@ module Main where
 import Control.Monad.Error hiding (mapM_)
 import Control.Monad.Error.Class
 import Control.Monad.Trans (liftIO)
-import System.Directory
+-- import System.Directory
 import System.Environment (getArgs)
 import Foundation
 import qualified Data.Text as DT 
@@ -21,7 +21,7 @@ import Control.Applicative
 import qualified Data.Char as DC
 import System.IO (print)
 import Yesod.Util.CodeGen
-import Filesystem.Path.CurrentOS (toText)
+import Filesystem.Path.CurrentOS (fromText, toText)
 import Filesystem
 import Filesystem.Path
 
@@ -60,8 +60,8 @@ main_ = do
         $ throwError "model name must be uppercase"
       checkModelName modelNameUpper
       fields <- makeFields fields
-      let handlerFp = "Handler." ++ modelNameUpper ++ ".hs"
-      handlerExists <- liftIO $ doesFileExist $ DT.unpack handlerFp
+      let handlerFp = fromText $ "Handler." ++ modelNameUpper ++ ".hs"
+      handlerExists <- liftIO $ isFile handlerFp
       when handlerExists $ throwError "Handler File already exists, cannot continue"
       ------------------------------------------------------------------------
       --  FIRE THE MISSILES - This is where we pass the point of no return  -- 
@@ -77,9 +77,14 @@ addHandlerModuleToCabalFile fp moduleName = do
   case break ("other-modules" `DT.isInfixOf`) allLines of
     ([],_) -> throwError "malformed cabal file"
     (_,[]) -> throwError "malformed cabal file"
-    (prevLines, otherModulesLine:restOfLines) -> do
-      liftIO $ createBackupCopy fp
-      undefined
+    (prevLines, otherModulesLine:restOfLines) -> liftIO $ do
+      createBackupCopy fp
+      let moduleLine = "                     Handler." ++ moduleName
+      writeTextFile fp . DT.intercalate "\n" $  
+        prevLines ++ (otherModulesLine : moduleLine : restOfLines)
+        
+
+      
 
 
 -- | anytime we're messing with an existing file, create a backup copy as a courtesy
@@ -89,9 +94,7 @@ createBackupCopy fp = copyRec fp (addExt fp)
   addExt fp = addExtension fp "bak"
   copyRec fpSrc fpDes = do
     exists <- isFile fpDes
-    if exists 
-      then copyRec fpSrc (addExt fpDes)
-      else readTextFile fpSrc >>= writeTextFile fpDes
+    if exists then copyRec fpSrc (addExt fpDes) else copyFile fpSrc fpDes
 
 makeFields :: [Text] -> ErrT [FieldDesc]
 makeFields l = mapM (\t -> checkRes (parse parseField t)) l
