@@ -40,4 +40,3 @@ executable             yesod-generate
     if flag(threaded)
         ghc-options:    -threaded
     main-is:           Main.hs
-

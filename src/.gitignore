@@ -1,2 +1,4 @@
 config
 cabal-dev
+*.bak
+Handler/

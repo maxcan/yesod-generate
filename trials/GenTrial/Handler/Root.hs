@@ -49,7 +49,7 @@ fooForm :: Maybe Foo -> Form Foo
 fooForm mFoo = 
   renderDivs $ Foo
     <$> aopt textField "bar" (fooBar <$> mFoo)
-    <*> areq (selectField (optionsPersistKey [] [Asc UserIdent] (toPathPiece . entityKey))) "user" (fooUser <$> mFoo)
+    <*> areq (selectField (optionsPersistKey [] [] (toPathPiece . entityKey))) "user" (fooUser <$> mFoo)
     <*> areq intField "age" (fooAge <$> mFoo)
 
 getFooR           :: Handler RepHtml
