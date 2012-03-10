@@ -36,6 +36,7 @@ executable             yesod-generate
                      , system-fileio
                      , directory
                      , yesod-codegen
+                     , cmdargs            >= 0.9.3
     ghc-options:       -Wall
     if flag(threaded)
         ghc-options:    -threaded

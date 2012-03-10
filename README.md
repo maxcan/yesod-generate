@@ -1,3 +1,9 @@
+# TODOs
+
+* test the output
+* make it pretty
+* add bootstrap option
+
 # Yesod Generators
 
 Generators to help kickstart yesod projects and promote best practices.
