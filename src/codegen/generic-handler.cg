@@ -1,12 +1,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Handler.~modelNameUpper~ 
-  ( get~modelNameUpper~R
-  , post~modelNameUpper~R
-  , get~modelNameUpper~NewR
-  , get~modelNameUpper~DetailR
-  , put~modelNameUpper~DetailR
-  , delete~modelNameUpper~DetailR
-  , get~modelNameUpper~EditR
+module Handler.~{modelNameUpper} 
+  ( get~{modelNameUpper}R
+  , post~{modelNameUpper}R
+  , get~{modelNameUpper}NewR
+  , get~{modelNameUpper}DetailR
+  , put~{modelNameUpper}DetailR
+  , delete~{modelNameUpper}DetailR
+  , get~{modelNameUpper}EditR
   )
   where
 
@@ -18,7 +18,7 @@ optionsPersistKey
      , PersistQuery (YesodPersistBackend master) (GHandler sub master)
      , PathPiece (Key (YesodPersistBackend master) a)
      , RenderMessage master msg
-     , PersistEntityBackend a ~tilde~ YesodPersistBackend master) 
+     , PersistEntityBackend a ~ YesodPersistBackend master) 
   => [Filter a] 
   -> [SelectOpt a] 
   -> (Entity a -> msg) 
@@ -40,42 +40,42 @@ optionsPersistKey filts ords toDisplay = fmap mkOptionList $ do
 --     <*> areq intField "age" (fooAge <$> mFoo)
 -- 
 
-~generatedForm~
+~{generatedForm}
 
-get~modelNameUpper~R           :: Handler RepHtml
-post~modelNameUpper~R          :: Handler RepHtml
-get~modelNameUpper~NewR        :: Handler RepHtml
-get~modelNameUpper~DetailR     :: ~modelNameUpper~Id -> Handler RepHtml
-put~modelNameUpper~DetailR     :: ~modelNameUpper~Id -> Handler RepHtml
-delete~modelNameUpper~DetailR  :: ~modelNameUpper~Id -> Handler RepHtml
-get~modelNameUpper~EditR       :: ~modelNameUpper~Id -> Handler RepHtml
+get~{modelNameUpper}R           :: Handler RepHtml
+post~{modelNameUpper}R          :: Handler RepHtml
+get~{modelNameUpper}NewR        :: Handler RepHtml
+get~{modelNameUpper}DetailR     :: ~{modelNameUpper}Id -> Handler RepHtml
+put~{modelNameUpper}DetailR     :: ~{modelNameUpper}Id -> Handler RepHtml
+delete~{modelNameUpper}DetailR  :: ~{modelNameUpper}Id -> Handler RepHtml
+get~{modelNameUpper}EditR       :: ~{modelNameUpper}Id -> Handler RepHtml
 
 
-get~modelNameUpper~R = do
-  (all~modelNameUpper~s :: [Entity ~modelNameUpper~]) <- runDB $ selectList [] []
-  defaultLayout $ $(widgetFile "~modelNameLower~/index")
+get~{modelNameUpper}R = do
+  (all~{modelNameUpper}s :: [Entity ~{modelNameUpper}]) <- runDB $ selectList [] []
+  defaultLayout $ $(widgetFile "~{modelNameLower}/index")
 
-post~modelNameUpper~R = do
-  ((formResult, formWidget), enctype) <- runFormPost $ ~modelNameLower~Form Nothing
+post~{modelNameUpper}R = do
+  ((formResult, formWidget), enctype) <- runFormPost $ ~{modelNameLower}Form Nothing
   case formResult of
-    FormSuccess ~modelNameLower~ -> do
-      ~modelNameLower~Id <- runDB $ insert ~modelNameLower~
+    FormSuccess ~{modelNameLower} -> do
+      ~{modelNameLower}Id <- runDB $ insert ~{modelNameLower}
       setMessage "successfully added"
-      redirect $ ~modelNameUpper~DetailR ~modelNameLower~Id
+      redirect $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
     _ -> do 
       setMessage "form error"
-      redirect ~modelNameUpper~NewR
+      redirect ~{modelNameUpper}NewR
     
-get~modelNameUpper~NewR = do
-  ((_, formWidget), enctype) <- generateFormPost $ ~modelNameLower~Form Nothing
-  defaultLayout $ $(widgetFile "~modelNameLower~/new")
+get~{modelNameUpper}NewR = do
+  ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form Nothing
+  defaultLayout $ $(widgetFile "~{modelNameLower}/new")
     
   
-get~modelNameUpper~DetailR ~modelNameLower~Id = do
-  ~modelNameLower~ <- runDB $ get404 ~modelNameLower~Id
-  defaultLayout $ $(widgetFile "~modelNameLower~/show")
+get~{modelNameUpper}DetailR ~{modelNameLower}Id = do
+  ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
+  defaultLayout $ $(widgetFile "~{modelNameLower}/show")
 
-put~modelNameUpper~DetailR ~modelNameLower~Id = undefined
-delete~modelNameUpper~DetailR ~modelNameLower~Id = undefined 
-get~modelNameUpper~EditR ~modelNameLower~Id = undefined
+put~{modelNameUpper}DetailR ~{modelNameLower}Id = undefined
+delete~{modelNameUpper}DetailR ~{modelNameLower}Id = undefined 
+get~{modelNameUpper}EditR ~{modelNameLower}Id = undefined
 

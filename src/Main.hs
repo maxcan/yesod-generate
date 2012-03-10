@@ -17,12 +17,13 @@ import Control.Monad.Trans (liftIO)
 import System.Environment (getArgs)
 import Foundation
 import qualified Data.Text as DT 
+import qualified Data.Text.Lazy as LT 
 -- import Text.ParserCombinators.Parsec
 import Data.Attoparsec.Text hiding (take)
 import Control.Applicative
 import qualified Data.Char as DC
 import System.IO (putStrLn, print)
-import Yesod.Util.CodeGen
+import Text.Shakespeare.Text hiding (toText)
 import Filesystem.Path.CurrentOS (fromText, toText)
 import Filesystem
 import Filesystem.Path hiding (concat)
@@ -76,7 +77,7 @@ main_ = do
       addHandlerModuleToCabalFile cabalFp $ "Handler." ++ modelNameUpper
       addModelToModelsFile modelsFp modelNameUpper fields
       genHandlerFile handlerFp modelNameUpper fields
-      putStrLn "Finished Successfully!"
+      liftIO $ putStrLn "Finished Successfully!"
     m : _ -> throwError $ "No generator for: " ++ DT.pack m
     [] -> throwError $ "Need some arguments!  Toss me a freakin bone here"
   
@@ -96,9 +97,8 @@ genHandlerFile
   -> ErrT ()
 genHandlerFile fp modelNameUpper_ flds = do
   generatedForm <- DT.unpack <$> formText modelNameUpper_ flds
-  liftIO $ writeTextFile fp $ DT.pack $(codegen "generic-handler")
+  liftIO $ writeTextFile fp $(codegenFile "codegen/generic-handler.cg")
  where
-  tilde = "~"
   modelNameUpper = DT.unpack modelNameUpper_
   modelNameLower = DT.unpack $ 
     DT.cons (DC.toLower $ DT.head modelNameUpper_) (DT.tail modelNameUpper_)
@@ -117,7 +117,7 @@ addHandlerModuleToCabalFile fp moduleName = do
         prevLines ++ (otherModulesLine : moduleLine : restOfLines)
         
 -- genRoutes :: Text -> Text -> Text
-genRoutes modelNameUpper_ = DT.pack $ $(codegen "routes")
+genRoutes modelNameUpper_ = $(codegenFile "codegen/routes.cg")
  where
   modelNameUpper = DT.unpack modelNameUpper_
   modelNameLower = DT.unpack $ 
