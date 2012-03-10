@@ -13,7 +13,6 @@ module Main where
 
 import Control.Monad.Error hiding (mapM_)
 import Control.Monad.Error.Class
-import System.Environment (getArgs)
 import Foundation
 import qualified Data.Text as DT 
 import Data.Attoparsec.Text hiding (take)
@@ -25,76 +24,76 @@ import Filesystem.Path.CurrentOS (fromText, toText)
 import Filesystem
 import Filesystem.Path hiding (concat)
 import System.Console.CmdArgs
-import Data.Data (Data, Typeable)
 import Prelude (String)
 
-routesFp = "config/routes" ; routesFp :: FilePath
-modelsFp = "config/models" ; modelsFp :: FilePath
 
 type ErrT = ErrorT Text IO
 main :: IO ()
 main = do
   command <- cmdArgsRun (cmdArgsMode $ modes [model, view] &= program "yesod-generate")
+  print command
   res <- runErrorT $ main_ command
-  print $ (show res :: Text)
+  print (show res :: Text)
   return ()
 
+-- ** Types and Annotations for CmdArgs
 data Generator
   = Model 
     { modelBootstrap :: Bool
-    , modelName  :: String
+    , modelRootDir :: String
+    , modelName  :: String -- ^ Cmdargs doesn't support Data.Text apparently
     , modelTypes :: [String]
     }
   | View
     { viewBootstrap :: Bool }
   deriving (Show, Eq, Ord, Data, Typeable, Read) 
 
-view = View
+view :: Generator ; view = View
   { viewBootstrap  = def &= explicit &= name "b"  &= help "Use Bootstrap Style Forms"
   } &= help "Not yet supported"
-model = Model
+model :: Generator ; model = Model
   { modelBootstrap = def &= explicit &= name "b" &= help "Use Bootstrap Style Forms"
-  , modelName = "" &= typ "MODELNAME" &= argPos 0
-  , modelTypes = def &= typ "FIELDS" &= args
+  , modelRootDir =   "." &= explicit &= name "root" &= help "Root directory of project" &= opt ("." :: String)
+  , modelName =      def &= typ "MODELNAME" &= argPos 0
+  , modelTypes =     def &= typ "FIELDS" &= args
   } &= help  "Generate a Yesod Model and Views"
 
 main_ :: Generator -> ErrT ()
-main_ generator = do 
-  case generator of
-    View _ -> throwError "view not supported"
-    Model True _ _ -> throwError "bootstrap not supported"
-    Model _ _modelName _fields -> do 
-      -- sanity check that files exist
-      checkFileExists routesFp
-      checkFileExists modelsFp
-      -- check for cabal file:
-      cabalFp <- do
-        dirContents <- liftIO $ listDirectory "."
-        case filter (flip hasExtension "cabal") dirContents of
-          [f] -> return f
-          []  -> throwError "no cabal file found"
-          _   -> throwError "multiple cabal files found"
-      -- check that there isn't already a handler file with this name:
-      let modelNameUpper = DT.pack _modelName 
-          fieldsRaw = map DT.pack _fields
-      
-      unless (DC.isUpper $ DT.head modelNameUpper) 
-        $ throwError "model name must be uppercase"
-      checkModelName modelNameUpper
-      fields <- makeFields fieldsRaw
-      when (length fields < (1 :: Int)) $ throwError $ "Need at least one field!"
-      liftIO $ do putStrLn "Checking handler directory"
-                  createDirectory True "Handler"
-      let handlerFp = fromText $ "Handler/" ++ modelNameUpper ++ ".hs"
-      handlerExists <- liftIO $ isFile handlerFp
-      when handlerExists $ throwError "Handler File already exists, cannot continue"
-      ------------------------------------------------------------------------
-      --  FIRE THE MISSILES - This is where we pass the point of no return  -- 
-      ------------------------------------------------------------------------
-      addHandlerModuleToCabalFile cabalFp $ "Handler." ++ modelNameUpper
-      addModelToModelsFile modelsFp modelNameUpper fields
-      genHandlerFile handlerFp modelNameUpper fields
-      liftIO $ putStrLn "Finished Successfully!"
+main_ (View _) = throwError "view not supported"
+main_ (Model True _ _ _) = throwError "bootstrap not supported"
+main_ (Model _ _rootDir _modelName _fields) = do 
+  let modelNameUpper = DT.pack _modelName 
+      rootDir   = fromText $ DT.pack _rootDir
+      fieldsRaw = map DT.pack _fields
+      handlerFp = fromText $ "Handler/" ++ modelNameUpper ++ ".hs"
+      routesFp = rootDir ++ "config/routes" 
+      modelsFp = rootDir ++ "config/models" 
+  -- sanity check that files exist
+  checkFileExists routesFp
+  checkFileExists modelsFp
+  checkModelName modelsFp modelNameUpper
+  fields <- makeFields fieldsRaw
+  when (length fields < (1 :: Int)) $ throwError "Need at least one field!"
+  -- check for cabal file:
+  cabalFp <- do
+    dirContents <- liftIO $ listDirectory rootDir
+    case filter (flip hasExtension "cabal") dirContents of
+      [f] -> return f
+      []  -> throwError "no cabal file found"
+      _   -> throwError "multiple cabal files found"
+  -- check that there isn't already a handler file with this name:
+  unless (DC.isUpper $ DT.head modelNameUpper) $ throwError "model name must be uppercase"
+  liftIO (putStrLn "Checking handler directory" >> createDirectory True "Handler")
+  handlerExists <- liftIO $ isFile handlerFp
+  when handlerExists $ throwError "Handler File already exists, cannot continue"
+  ------------------------------------------------------------------------
+  --  FIRE THE MISSILES - This is where we pass the point of no return  -- 
+  ------------------------------------------------------------------------
+  addHandlerModuleToCabalFile cabalFp $ "Handler." ++ modelNameUpper
+  addModelToModelsFile modelsFp modelNameUpper fields
+  genHandlerFile handlerFp modelNameUpper fields
+  addRoutes  routesFp modelNameUpper
+  liftIO $ putStrLn "Finished Successfully!"
   
 addModelToModelsFile :: FilePath -> Text -> [FieldDesc] -> ErrT ()
 addModelToModelsFile fp modelNameUpper flds = liftIO $ do
@@ -161,7 +160,7 @@ createBackupCopy fp = copyRec fp (addExt fp)
         print $ ("Backed up " ++ show fpSrc ++ " to location: " ++ show fpDes :: Text)
 
 makeFields :: [Text] -> ErrT [FieldDesc]
-makeFields l = mapM (\t -> checkRes (parse parseField t)) l
+makeFields = mapM (checkRes . (parse parseField))
  where
   checkRes (Done _ r) = return r
   checkRes (Partial f) = checkRes $  f DT.empty 
@@ -217,6 +216,7 @@ textToFieldType "Day" = Right FtDay
 textToFieldType t | "Id" `DT.isSuffixOf` t = Right $ PersistReference $ take (length t - 2 :: Int) t
                   | otherwise = Left $ "Bad Field Type:" ++ t
 
+formFieldForFieldType :: FieldType -> Text
 formFieldForFieldType FtInt    = "intField   "
 formFieldForFieldType FtDay    = "dayField   "
 formFieldForFieldType FtText   = "textField  "
@@ -237,6 +237,7 @@ fieldForFieldDesc isFirst modelNameUpper fd = concat
   fieldNameUpper = DT.cons (DC.toUpper $ DT.head $ fdName fd) (DT.tail $ fdName fd)
   modelNameLower = DT.cons (DC.toLower $ DT.head modelNameUpper) (DT.tail modelNameUpper)
 
+formText :: Text -> [FieldDesc] -> ErrT Text
 formText _ [] = throwError "need at least one field!"
 formText modelNameUpper (hdField:tlFields) = return $ DT.intercalate "\n" $ 
   [ concat [ modelNameLower, "Form :: Maybe ", modelNameUpper, " -> Form ", modelNameUpper]
@@ -246,7 +247,8 @@ formText modelNameUpper (hdField:tlFields) = return $ DT.intercalate "\n" $
  where
   modelNameLower = DT.cons (DC.toLower $ DT.head modelNameUpper) (DT.tail modelNameUpper)
 
-checkModelName n = do
+checkModelName :: FilePath -> Text -> ErrT ()
+checkModelName modelsFp n = do
   -- _TODO change this to conduits for good yesodkarma
   let isTbl s | length s > (0 :: Int) = not . DC.isSpace $ DT.head s
               | otherwise = False
