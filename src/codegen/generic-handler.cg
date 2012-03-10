@@ -42,10 +42,10 @@ optionsPersistKey filts ords toDisplay = fmap mkOptionList $ do
 
 ~generatedForm~
 
-get~modelNameUpper~R           :: Handler RepHtml
+get~modelNameUpper~R           :: Handler RepHtmlJson
 post~modelNameUpper~R          :: Handler RepHtml
 get~modelNameUpper~NewR        :: Handler RepHtml
-get~modelNameUpper~DetailR     :: ~modelNameUpper~Id -> Handler RepHtml
+get~modelNameUpper~DetailR     :: ~modelNameUpper~Id -> Handler RepHtmlJson
 put~modelNameUpper~DetailR     :: ~modelNameUpper~Id -> Handler RepHtml
 delete~modelNameUpper~DetailR  :: ~modelNameUpper~Id -> Handler RepHtml
 get~modelNameUpper~EditR       :: ~modelNameUpper~Id -> Handler RepHtml
@@ -53,7 +53,7 @@ get~modelNameUpper~EditR       :: ~modelNameUpper~Id -> Handler RepHtml
 
 get~modelNameUpper~R = do
   (all~modelNameUpper~s :: [Entity ~modelNameUpper~]) <- runDB $ selectList [] []
-  defaultLayout $ $(widgetFile "~modelNameLower~/index")
+  defaultLayoutJson $ $(widgetFile "~modelNameLower~/index") all~modelNameUpper~s
 
 post~modelNameUpper~R = do
   ((formResult, formWidget), enctype) <- runFormPost $ ~modelNameLower~Form Nothing
@@ -73,7 +73,7 @@ get~modelNameUpper~NewR = do
   
 get~modelNameUpper~DetailR ~modelNameLower~Id = do
   ~modelNameLower~ <- runDB $ get404 ~modelNameLower~Id
-  defaultLayout $ $(widgetFile "~modelNameLower~/show")
+  defaultLayoutJson $ $(widgetFile "~modelNameLower~/show") ~modelNameLower~
 
 put~modelNameUpper~DetailR ~modelNameLower~Id = undefined
 delete~modelNameUpper~DetailR ~modelNameLower~Id = undefined 
