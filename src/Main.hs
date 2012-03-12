@@ -119,9 +119,9 @@ addModelToModelsFile fp ed = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
   liftIO $ do 
     createBackupCopy fp
-    appendTextFile fp $ "\n" ++ DT.intercalate "\n" (modelNameUpper : map fdToModel flds)
+    appendTextFile fp $ "\n" ++ DT.intercalate "\n" (modelLine : map fdToModel flds)
  where
-  modelNameUpper = unHaskellName (entityHaskell ed)
+  modelLine = unHaskellName (entityHaskell ed) ++ " json"
   fdToModel fd =
     "  " ++ fdName fd ++ " " ++ ftToType (fdType fd) ++ 
     if fdNullable fd then " Maybe" else ""
@@ -134,7 +134,7 @@ genHandlerFile fp ed  = do
  where
   modelNameUpper = unHaskellName (entityHaskell ed)
   tilde = "~"
-  modelNameLower = capitalize modelNameUpper
+  modelNameLower = decapitalize modelNameUpper
   
 
 addLineToFile

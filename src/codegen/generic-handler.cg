@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Handler.~modelNameUpper~ 
   ( get~modelNameUpper~R
@@ -11,6 +12,8 @@ module Handler.~modelNameUpper~
   where
 
 import Import
+import Data.Aeson
+import qualified Data.HashMap.Lazy as HML
 
 optionsPersistKey
   :: (YesodPersist master
@@ -43,9 +46,14 @@ delete~modelNameUpper~DetailR  :: ~modelNameUpper~Id -> Handler RepHtml
 get~modelNameUpper~EditR       :: ~modelNameUpper~Id -> Handler RepHtml
 
 
+instance ToJSON (Entity ~modelNameUpper~) where
+  toJSON (Entity k v) = case toJSON v of
+    Object o -> Object $ HML.insert "id" (toJSON k) o
+    _ -> error "unexpect JS encode erorr"
+
 get~modelNameUpper~R = do
   (all~modelNameUpper~s :: [Entity ~modelNameUpper~]) <- runDB $ selectList [] []
-  defaultLayoutJson $ $(widgetFile "~modelNameLower~/index") all~modelNameUpper~s
+  defaultLayoutJson $(widgetFile "~modelNameLower~/index") all~modelNameUpper~s
 
 post~modelNameUpper~R = do
   ((formResult, formWidget), enctype) <- runFormPost $ ~modelNameLower~Form Nothing
@@ -65,7 +73,7 @@ get~modelNameUpper~NewR = do
   
 get~modelNameUpper~DetailR ~modelNameLower~Id = do
   ~modelNameLower~ <- runDB $ get404 ~modelNameLower~Id
-  defaultLayoutJson $ $(widgetFile "~modelNameLower~/show") ~modelNameLower~
+  defaultLayoutJson $(widgetFile "~modelNameLower~/show") (Entity ~modelNameLower~Id ~modelNameLower~)
 
 put~modelNameUpper~DetailR ~modelNameLower~Id = undefined
 delete~modelNameUpper~DetailR ~modelNameLower~Id = undefined 
