@@ -36,8 +36,14 @@ executable             yesod-generate
                      , system-fileio
                      , directory
                      , yesod-codegen
+                     , persistent         >= 0.8          && < 0.9
                      , cmdargs            >= 0.9.3
     ghc-options:       -Wall
     if flag(threaded)
         ghc-options:    -threaded
     main-is:           Main.hs
+
+source-repository head
+  type: git
+  location: git://github.com/maxcan/yesod-generate.git
+  

@@ -17,6 +17,10 @@ Generators to help kickstart yesod projects and promote best practices.
 
     yesod-generate model <TableName> (<field::{Type|Type?}>)+
 
+### Switching to Persistent Style syntax:
+
+    yesod-generate model <TableName> (<field Type [Maybe]>[, <field Type [Maybe]>])+
+
 for example:
 
     yesod-generate model User name::Text age::Int? bday::Day? group::GroupId
