@@ -35,9 +35,9 @@ executable             yesod-generate
                      , system-filepath
                      , system-fileio
                      , directory
-                     , yesod-codegen
                      , persistent         >= 0.8          && < 0.9
                      , cmdargs            >= 0.9.3
+                     , shakespeare-text   >= 0.11
     ghc-options:       -Wall
     if flag(threaded)
         ghc-options:    -threaded

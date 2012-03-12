@@ -1,4 +1,7 @@
-# TODOs
+# NOTES
+
+*yesod-generate assumes a canonical file structure based on the output of the yesod scaffolder.  if you move files around yesod-generate will fail.*
+### TODOs
 
 * test the output
 * make it pretty
@@ -15,40 +18,36 @@ Generators to help kickstart yesod projects and promote best practices.
 
 ## Model Generation
 
-    yesod-generate model <TableName> (<field::{Type|Type?}>)+
-
-### Switching to Persistent Style syntax:
-
     yesod-generate model <TableName> (<field Type [Maybe]>[, <field Type [Maybe]>])+
 
 for example:
 
-    yesod-generate model User name::Text age::Int? bday::Day? group::GroupId
+    yesod-generate model User name Text, age Int Maybe, bday Day Maybe, group GroupId
 
 ### Notes:
 
-* append a '?' to a type annotation for nullable, aka Maybe, types.
+* put a comma after each field.
+* can put Maybe after the type to denote a nullable type
 
 ### Supported Types
 
 * Other persistent Ids
-    * note that any type ending in Id is assumed to be a persistent key and will be treated as such.
-    * boo
+    * *note that any type ending in Id is assumed to be a persistent key and will be treated as such.*
 * Bool 
 * Double 
 * Int 
+* String  
+    * *Note that we will assume you meant Text, since you should be.*
+* Text 
+* Day
+
+### possibly coming soon
+
 * Int8 
 * Int16 
 * Int32 
 * Int64 
-* Word8 
-* Word16 
-* Word32 
-* Word64 
-* String 
-* Text 
 * ByteString 
 * Html 
 * TimeOfDay 
 * UTCTime 
-* Day

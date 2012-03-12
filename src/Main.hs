@@ -17,7 +17,7 @@ import Foundation
 import qualified Data.Text as DT 
 import qualified Data.Char as DC
 import System.IO (putStrLn, print)
-import Yesod.Util.CodeGen
+import Text.Shakespeare.Text hiding (toText)
 import Filesystem.Path.CurrentOS (fromText, toText)
 import Filesystem
 import Filesystem.Path hiding (concat)
@@ -59,8 +59,7 @@ model :: Generator ; model = Model
 
 main_ :: Generator -> ErrT ()
 main_ (View _) = throwError "view not supported"
-main_ (Model True _ _ _) = throwError "bootstrap not supported"
-main_ (Model _ _rootDir _modelName _fields) = do 
+main_ (Model useBootstrap _rootDir _modelName _fields) = do 
   -- NOTE:
   --   if we add a Day to the model, need to add time to the cabal file and
   --   Data.Time.Calendar to model.hs
@@ -86,6 +85,8 @@ main_ (Model _ _rootDir _modelName _fields) = do
   -- sanity check that files exist
   checkFileExists routesFp
   checkFileExists modelsFp
+  -- check fields:
+  mapM_ persistFieldDefToFieldDesc $ entityFields entityDef -- will throw an erorr if there's a bad field
   checkModelName modelsFp modelNameUpper
   when (length (entityFields entityDef) < (1 :: Int)) $ throwError "Need at least one field!"
   when (modelNameUpper /= unHaskellName (entityHaskell entityDef)) 
@@ -107,7 +108,7 @@ main_ (Model _ _rootDir _modelName _fields) = do
   ------------------------------------------------------------------------
   addHandlerModuleToCabalFile cabalFp entityDef
   addModelToModelsFile modelsFp entityDef
-  genHandlerFile handlerFp entityDef
+  genHandlerFile useBootstrap handlerFp entityDef
   addLineToFile appFp 
                 ("import Handler.Root" `DT.isInfixOf`) 
                 ("import " ++ persistEntityDefToModule entityDef)
@@ -126,16 +127,30 @@ addModelToModelsFile fp ed = do
     "  " ++ fdName fd ++ " " ++ ftToType (fdType fd) ++ 
     if fdNullable fd then " Maybe" else ""
 
-genHandlerFile :: FilePath -> EntityDef -> ErrT ()
-genHandlerFile fp ed  = do
+genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
+genHandlerFile useBootstrap fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
-  generatedForm <- formText modelNameUpper flds
-  liftIO $ writeTextFile fp $(codegen "generic-handler")
+  case flds of
+    [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
+    hdField:tlFields -> do 
+      let generatedFormFields = "  " ++ DT.intercalate "\n  "
+            ( (fieldForFieldDesc True modelNameUpper hdField)
+            : (map (fieldForFieldDesc False modelNameUpper) tlFields ))
+      liftIO $ writeTextFile fp $(codegenFile "codegen/generic-handler.cg")
  where
+  renderFxn = if useBootstrap then "renderBootstrap" else "renderDivs" :: Text
   modelNameUpper = unHaskellName (entityHaskell ed)
-  tilde = "~"
   modelNameLower = decapitalize modelNameUpper
-  
+
+addUnqLineToFile 
+  :: FilePath
+  -> (Text -> Bool) -- ^ will add the line after the first line where this is true
+  -> Text           -- ^ Text to import  
+  -> ErrT ()
+addUnqLineToFile fp whereToAdd whatToAdd = do
+  allLines <- liftIO $ (map DT.strip . lines) <$> readTextFile fp
+  unless (DT.strip whatToAdd `elem` allLines)
+         (addLineToFile fp whereToAdd whatToAdd)
 
 addLineToFile
   :: FilePath
@@ -157,10 +172,13 @@ addHandlerModuleToCabalFile :: FilePath -> EntityDef -> ErrT ()
 addHandlerModuleToCabalFile fp ed = do
   let moduleName = persistEntityDefToModule ed
       moduleLine = "                     " ++ moduleName
+      dependsLines = [ "                 , unordered-containers          >= 0.1"
+                     , "                 , aeson                         >= 0.6" ]
   addLineToFile fp ("other-modules" `DT.isInfixOf`) moduleLine
+  mapM_ (addUnqLineToFile fp ("build-depends" `DT.isInfixOf`)) dependsLines
         
 genRoutes :: EntityDef -> Text
-genRoutes ed = $(codegen "routes")
+genRoutes ed = $(codegenFile "codegen/routes.cg")
  where
   modelNameUpper = unHaskellName (entityHaskell ed)
   modelNameLower = decapitalize modelNameUpper
@@ -273,7 +291,9 @@ textToFdType :: Text -> ErrT FdType
 textToFdType "Int" = return FtInt
 textToFdType "Double" = return FtDouble
 textToFdType "Text" = return FtText
-textToFdType "Html" = return FtHtml
+textToFdType "String" = return FtText
+
+-- textToFdType "Html" = return FtHtml
 textToFdType "Day" = return FtDay
 textToFdType t | "Id" `DT.isSuffixOf` t = return . PersistReference $ take (length t - 2 :: Int) t
                   | otherwise = throwError $ "Bad Field Type:" ++ t
@@ -299,15 +319,19 @@ fieldForFieldDesc isFirst modelNameUpper fd = concat
   fieldNameUpper = capitalize $ fdName fd
   modelNameLower = decapitalize modelNameUpper
 
-formText :: Text -> [FieldDesc] -> ErrT Text
-formText _ [] = throwError "need at least one field!"
-formText modelNameUpper (hdField:tlFields) = return $ DT.intercalate "\n" $ 
-  [ concat [ modelNameLower, "Form :: Maybe ", modelNameUpper, " -> Form ", modelNameUpper]
-  , concat [ modelNameLower, "Form m", modelNameUpper ," = renderDivs $ ", modelNameUpper]
-  , fieldForFieldDesc True modelNameUpper hdField
-  ] ++ map (fieldForFieldDesc False modelNameUpper) tlFields 
- where
-  modelNameLower = decapitalize modelNameUpper
+-- formText 
+--   :: Bool -- ^ use bootstrap style forms
+--   -> Text
+--   -> [FieldDesc] 
+--   -> ErrT Text
+-- formText _ _ [] = throwError "need at least one field!"
+-- formText useBootstrap modelNameUpper (hdField:tlFields) = return $ DT.intercalate "\n" $ 
+--   [ concat [ modelNameLower, "Form :: Maybe ", modelNameUpper, " -> Form ", modelNameUpper]
+--   , concat [ modelNameLower, "Form m", modelNameUpper ," = ", renderFxn ," $ ", modelNameUpper]
+--   , fieldForFieldDesc True modelNameUpper hdField
+--   ] ++ map (fieldForFieldDesc False modelNameUpper) tlFields 
+--  where
+--   modelNameLower = decapitalize modelNameUpper
 
 checkModelName :: FilePath -> Text -> ErrT ()
 checkModelName modelsFp n = do

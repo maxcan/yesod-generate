@@ -1,17 +1,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Handler.~modelNameUpper~ 
-  ( get~modelNameUpper~R
-  , post~modelNameUpper~R
-  , get~modelNameUpper~NewR
-  , get~modelNameUpper~DetailR
-  , put~modelNameUpper~DetailR
-  , delete~modelNameUpper~DetailR
-  , get~modelNameUpper~EditR
+module Handler.~{modelNameUpper} 
+  ( get~{modelNameUpper}R
+  , post~{modelNameUpper}R
+  , get~{modelNameUpper}NewR
+  , get~{modelNameUpper}DetailR
+  , put~{modelNameUpper}DetailR
+  , delete~{modelNameUpper}DetailR
+  , get~{modelNameUpper}EditR
   )
   where
 
 import Import
+import qualified Data.Text as DT
 import Data.Aeson
 import qualified Data.HashMap.Lazy as HML
 
@@ -21,7 +22,7 @@ optionsPersistKey
      , PersistQuery (YesodPersistBackend master) (GHandler sub master)
      , PathPiece (Key (YesodPersistBackend master) a)
      , RenderMessage master msg
-     , PersistEntityBackend a ~tilde~ YesodPersistBackend master) 
+     , PersistEntityBackend a ~ YesodPersistBackend master) 
   => [Filter a] 
   -> [SelectOpt a] 
   -> (Entity a -> msg) 
@@ -35,47 +36,54 @@ optionsPersistKey filts ords toDisplay = fmap mkOptionList $ do
         , optionExternalValue = toPathPiece key
         }) pairs
 
-~generatedForm~
+~{modelNameLower}Form :: Maybe ~{modelNameUpper} -> Form ~{modelNameUpper}
+~{modelNameLower}Form m~{modelNameUpper} = ~{renderFxn} $ ~{modelNameUpper}
+~{generatedFormFields}
 
-get~modelNameUpper~R           :: Handler RepHtmlJson
-post~modelNameUpper~R          :: Handler RepHtml
-get~modelNameUpper~NewR        :: Handler RepHtml
-get~modelNameUpper~DetailR     :: ~modelNameUpper~Id -> Handler RepHtmlJson
-put~modelNameUpper~DetailR     :: ~modelNameUpper~Id -> Handler RepHtml
-delete~modelNameUpper~DetailR  :: ~modelNameUpper~Id -> Handler RepHtml
-get~modelNameUpper~EditR       :: ~modelNameUpper~Id -> Handler RepHtml
+get~{modelNameUpper}R           :: Handler RepHtmlJson
+post~{modelNameUpper}R          :: Handler RepHtml
+get~{modelNameUpper}NewR        :: Handler RepHtml
+get~{modelNameUpper}DetailR     :: ~{modelNameUpper}Id -> Handler RepHtmlJson
+put~{modelNameUpper}DetailR     :: ~{modelNameUpper}Id -> Handler RepHtml
+delete~{modelNameUpper}DetailR  :: ~{modelNameUpper}Id -> Handler RepHtml
+get~{modelNameUpper}EditR       :: ~{modelNameUpper}Id -> Handler RepHtml
 
 
-instance ToJSON (Entity ~modelNameUpper~) where
+instance ToJSON (Entity ~{modelNameUpper}) where
   toJSON (Entity k v) = case toJSON v of
     Object o -> Object $ HML.insert "id" (toJSON k) o
     _ -> error "unexpect JS encode erorr"
 
-get~modelNameUpper~R = do
-  (all~modelNameUpper~s :: [Entity ~modelNameUpper~]) <- runDB $ selectList [] []
-  defaultLayoutJson $(widgetFile "~modelNameLower~/index") all~modelNameUpper~s
+get~{modelNameUpper}R = do
+  (all~{modelNameUpper}s :: [Entity ~{modelNameUpper}]) <- runDB $ selectList [] []
+  defaultLayoutJson $(widgetFile "~{modelNameLower}/index") all~{modelNameUpper}s
 
-post~modelNameUpper~R = do
-  ((formResult, formWidget), enctype) <- runFormPost $ ~modelNameLower~Form Nothing
+post~{modelNameUpper}R = do
+  ((formResult, formWidget), enctype) <- runFormPost $ ~{modelNameLower}Form Nothing
   case formResult of
-    FormSuccess ~modelNameLower~ -> do
-      ~modelNameLower~Id <- runDB $ insert ~modelNameLower~
+    FormSuccess ~{modelNameLower} -> do
+      ~{modelNameLower}Id <- runDB $ insert ~{modelNameLower}
       setMessage "successfully added"
-      redirect $ ~modelNameUpper~DetailR ~modelNameLower~Id
+      redirect $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
     _ -> do 
       setMessage "form error"
-      redirect ~modelNameUpper~NewR
+      redirect ~{modelNameUpper}NewR
     
-get~modelNameUpper~NewR = do
-  ((_, formWidget), enctype) <- generateFormPost $ ~modelNameLower~Form Nothing
-  defaultLayout $ $(widgetFile "~modelNameLower~/new")
+get~{modelNameUpper}NewR = do
+  ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form Nothing
+  defaultLayout $ $(widgetFile "~{modelNameLower}/new")
     
-  
-get~modelNameUpper~DetailR ~modelNameLower~Id = do
-  ~modelNameLower~ <- runDB $ get404 ~modelNameLower~Id
-  defaultLayoutJson $(widgetFile "~modelNameLower~/show") (Entity ~modelNameLower~Id ~modelNameLower~)
+get~{modelNameUpper}DetailR ~{modelNameLower}Id = do
+  ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
+  defaultLayoutJson $(widgetFile "~{modelNameLower}/show") (Entity ~{modelNameLower}Id ~{modelNameLower})
 
-put~modelNameUpper~DetailR ~modelNameLower~Id = undefined
-delete~modelNameUpper~DetailR ~modelNameLower~Id = undefined 
-get~modelNameUpper~EditR ~modelNameLower~Id = undefined
+put~{modelNameUpper}DetailR ~{modelNameLower}Id = undefined
+delete~{modelNameUpper}DetailR ~{modelNameLower}Id = do 
+  _ <- runDB $ get404 ~{modelNameLower}Id
+  runDB $ delete ~{modelNameLower}Id
+  setMessage . toHtml $ DT.concat ["Deleted ~{modelNameUpper} with id: ", toPathPiece ~{modelNameLower}Id]
+  redirect ~{modelNameUpper}R
+
+
+get~{modelNameUpper}EditR ~{modelNameLower}Id = undefined
 
