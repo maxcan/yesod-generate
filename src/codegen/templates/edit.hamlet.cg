@@ -1,0 +1,4 @@
+<h1>Edit ~{modelNameUpper} Form
+<form method=PUT action=@{~{modelNameUpper}DetailR ~{modelNameLower}Id} enctype=#{enctype}
+  ^{formWidget}
+  <input type=submit>

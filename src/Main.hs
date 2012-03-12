@@ -49,7 +49,7 @@ data Generator
 
 view :: Generator ; view = View
   { viewBootstrap  = def &= explicit &= name "b"  &= help "Use Bootstrap Style Forms"
-  } &= help "Not yet supported"
+  } &= help "Not yet supported" 
 model :: Generator ; model = Model
   { modelBootstrap = def &= explicit &= name "b" &= help "Use Bootstrap Style Forms"
   , modelRootDir =   "." &= explicit &= name "root" &= help "Root directory of project" &= opt ("." :: String)
@@ -85,6 +85,7 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
   -- sanity check that files exist
   checkFileExists routesFp
   checkFileExists modelsFp
+  writeTemplates <- chkTemplates  rootDir entityDef -- verify that we aren't overwriting any templates
   -- check fields:
   mapM_ persistFieldDefToFieldDesc $ entityFields entityDef -- will throw an erorr if there's a bad field
   checkModelName modelsFp modelNameUpper
@@ -104,11 +105,12 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
   handlerExists <- liftIO $ isFile handlerFp
   when handlerExists $ throwError "Handler File already exists, cannot continue"
   ------------------------------------------------------------------------
-  --  FIRE THE MISSILES - This is where we pass the point of no return  -- 
+  --  FIRE THE MISSILES - This is where we pass the point of no return chk as much as possible above -- 
   ------------------------------------------------------------------------
   addHandlerModuleToCabalFile cabalFp entityDef
   addModelToModelsFile modelsFp entityDef
   genHandlerFile useBootstrap handlerFp entityDef
+  writeTemplates 
   addLineToFile appFp 
                 ("import Handler.Root" `DT.isInfixOf`) 
                 ("import " ++ persistEntityDefToModule entityDef)
@@ -126,6 +128,43 @@ addModelToModelsFile fp ed = do
   fdToModel fd =
     "  " ++ fdName fd ++ " " ++ ftToType (fdType fd) ++ 
     if fdNullable fd then " Maybe" else ""
+
+-- | if we pass the tests, this actually returns the function to call
+chkTemplates :: FilePath -> EntityDef -> ErrT (ErrT ())
+chkTemplates fp ed = do 
+  liftIO $ putStrLn "Checking template directory" 
+  liftIO $ createDirectory True genDirFp
+  mapM_ chkTmplClean $ map fst $ genTempates ed
+  return $ mapM_ writeTemplate $ genTempates ed
+ where
+  writeTemplate (n, t) = liftIO $ writeTextFile (genFp n) t
+  modelNameLower = decapitalize modelNameUpper
+  modelNameUpper = unHaskellName (entityHaskell ed)
+  genDirFp = fp ++ "templates" ++ fromText modelNameLower
+  genFp s = genDirFp ++ addExtension (fromText s) "hamlet"
+  chkTmplClean s = do
+    exists <- liftIO . isFile $ genFp s
+    when exists $ throwError ("Template File Exists: " ++ modelNameLower ++ "/" ++ s)
+
+genTempates :: EntityDef -> [ ( Text, Text) ]
+genTempates ed = 
+  [ ("edit" , $(codegenFile "codegen/templates/edit.hamlet.cg")) 
+  , ("new"  , $(codegenFile "codegen/templates/new.hamlet.cg")) 
+  , ("show" , $(codegenFile "codegen/templates/show.hamlet.cg")) 
+  , ("index", $(codegenFile "codegen/templates/index.hamlet.cg")) 
+  ]
+ where
+  modelNameLower = decapitalize modelNameUpper
+  modelNameUpper = unHaskellName (entityHaskell ed)
+
+-- writeTemplates :: FilePath -> EntityDef -> ErrT ()
+-- writeTemplates fp ed = mapM_ writeTemplate $ genTempates ed
+--   -- assumes that files have already been checked by chkTemplates
+--  where
+--   writeTemplate (n, t) = writeTextFile (genFp n) t
+--   genFp s = fp ++ "templates" ++ fromText modelNameLower ++ addExtension (fromText s) "hamlet"
+--   modelNameLower = decapitalize modelNameUpper
+--   modelNameUpper = unHaskellName (entityHaskell ed)
 
 genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
 genHandlerFile useBootstrap fp ed  = do

@@ -1,0 +1,10 @@
+<h1>
+  Showing all ~{modelNameUpper}s
+<dl
+  $forall cur~{modelNameUpper} <- all~{modelNameUpper}s
+    <dt
+      ~{modelNameUpper} Id: #{toPathPiece $ entityKey cur~{modelNameUpper}}
+    <dl
+      #{show $ entityVal cur~{modelNameUpper}}
+
+

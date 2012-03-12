@@ -71,13 +71,21 @@ post~{modelNameUpper}R = do
     
 get~{modelNameUpper}NewR = do
   ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form Nothing
-  defaultLayout $ $(widgetFile "~{modelNameLower}/new")
+  defaultLayout $(widgetFile "~{modelNameLower}/new")
     
 get~{modelNameUpper}DetailR ~{modelNameLower}Id = do
   ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
   defaultLayoutJson $(widgetFile "~{modelNameLower}/show") (Entity ~{modelNameLower}Id ~{modelNameLower})
 
-put~{modelNameUpper}DetailR ~{modelNameLower}Id = undefined
+put~{modelNameUpper}DetailR ~{modelNameLower}Id = do
+  ((formResult, _), _) <- runFormPost $ ~{modelNameLower}Form Nothing
+  case formResult of
+    FormSuccess ~{modelNameLower} -> do
+      ~{modelNameLower}Id <- runDB $ replace ~{modelNameLower}Id ~{modelNameLower}
+      setMessage "successfully replaced"
+    _ -> setMessage "form error"
+  redirect $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
+
 delete~{modelNameUpper}DetailR ~{modelNameLower}Id = do 
   _ <- runDB $ get404 ~{modelNameLower}Id
   runDB $ delete ~{modelNameLower}Id
@@ -85,5 +93,8 @@ delete~{modelNameUpper}DetailR ~{modelNameLower}Id = do
   redirect ~{modelNameUpper}R
 
 
-get~{modelNameUpper}EditR ~{modelNameLower}Id = undefined
+get~{modelNameUpper}EditR ~{modelNameLower}Id = do
+  ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
+  ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form (Just ~{modelNameLower})
+  defaultLayout $(widgetFile "~{modelNameLower}/edit")
 
