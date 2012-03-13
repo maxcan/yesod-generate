@@ -1,5 +1,6 @@
 
-/~{modelNameLower}s             ~{modelNameUpper}R        GET POST
-/~{modelNameLower}s/new         ~{modelNameUpper}NewR     GET
-/~{modelNameLower}/#~{modelNameUpper}Id       ~{modelNameUpper}DetailR  GET PUT DELETE
-/~{modelNameLower}/#~{modelNameUpper}Id/edit  ~{modelNameUpper}EditR    GET
+/~{modelNameLower}s             ~{modelNameUpper}R        GET 
+/~{modelNameLower}s/new         ~{modelNameUpper}NewR     GET POST
+/~{modelNameLower}/#~{modelNameUpper}Id/edit    ~{modelNameUpper}EditR    GET POST
+/~{modelNameLower}/#~{modelNameUpper}Id/delete  ~{modelNameUpper}DeleteR  POST
+/~{modelNameLower}/#~{modelNameUpper}Id         ~{modelNameUpper}DetailR  GET

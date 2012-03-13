@@ -75,7 +75,8 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
         DT.intercalate " " ( map (DT.replace "," spacer) fieldsRaw)
       handlerFp = rootDir ++ "Handler" ++ addExtension (fromText modelNameUpper) "hs"
       routesFp = rootDir ++ "config/routes" 
-      modelsFp = rootDir ++ "config/models" 
+      modelDefsFp = rootDir ++ "config/models" 
+      modelModuleFp = rootDir ++ "Model.hs"
       appFp    = rootDir ++ "Application.hs"
   liftIO . print . DT.unpack $ "-----\nUsing persistText:\n" ++ persistText -- _DEBUG
   entityDef <- case DPQ.parse (DPQ.PersistSettings $ const "blankName") persistText of
@@ -84,11 +85,11 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
     _   -> throwError "parse returned too many entity defs"
   -- sanity check that files exist
   checkFileExists routesFp
-  checkFileExists modelsFp
+  checkFileExists modelDefsFp  
   writeTemplates <- chkTemplates  rootDir entityDef -- verify that we aren't overwriting any templates
   -- check fields:
-  mapM_ persistFieldDefToFieldDesc $ entityFields entityDef -- will throw an erorr if there's a bad field
-  checkModelName modelsFp modelNameUpper
+  flds <- mapM persistFieldDefToFieldDesc $ entityFields entityDef -- will throw an erorr if there's a bad field
+  checkModelName modelDefsFp modelNameUpper
   when (length (entityFields entityDef) < (1 :: Int)) $ throwError "Need at least one field!"
   when (modelNameUpper /= unHaskellName (entityHaskell entityDef)) 
     $ throwError "sanity check failed - model name NOT equal to parsed model name"
@@ -107,8 +108,9 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
   ------------------------------------------------------------------------
   --  FIRE THE MISSILES - This is where we pass the point of no return chk as much as possible above -- 
   ------------------------------------------------------------------------
+  when (FtDay `elem` map fdType flds) $ addDayStuff modelModuleFp cabalFp
   addHandlerModuleToCabalFile cabalFp entityDef
-  addModelToModelsFile modelsFp entityDef
+  addModelToModelsFile modelDefsFp entityDef
   genHandlerFile useBootstrap handlerFp entityDef
   writeTemplates 
   addLineToFile appFp 
@@ -181,15 +183,16 @@ genHandlerFile useBootstrap fp ed  = do
   modelNameUpper = unHaskellName (entityHaskell ed)
   modelNameLower = decapitalize modelNameUpper
 
-addUnqLineToFile 
+appendLineToFile
   :: FilePath
-  -> (Text -> Bool) -- ^ will add the line after the first line where this is true
-  -> Text           -- ^ Text to import  
+  -> Text           -- ^ Text to import
   -> ErrT ()
-addUnqLineToFile fp whereToAdd whatToAdd = do
-  allLines <- liftIO $ (map DT.strip . lines) <$> readTextFile fp
-  unless (DT.strip whatToAdd `elem` allLines)
-         (addLineToFile fp whereToAdd whatToAdd)
+appendLineToFile fp whatToAdd = do
+  content <- liftIO $ readTextFile fp
+  unless (DT.strip whatToAdd `elem` map DT.strip (lines content)) $ liftIO $ do
+    createBackupCopy fp
+    print $ "Appending: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
+    writeTextFile fp $ content ++ "\n" ++ whatToAdd
 
 addLineToFile
   :: FilePath
@@ -197,15 +200,16 @@ addLineToFile
   -> Text           -- ^ Text to import
   -> ErrT ()
 addLineToFile fp whereToAdd whatToAdd = do
-  liftIO $ print $ "Adding: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
   allLines <- liftIO $ lines <$> readTextFile fp
-  case break whereToAdd allLines of
-    ([],_) -> throwError "malformed file (probably missing other-modules field)"
-    (_,[]) -> throwError "malformed file (probably missing other-modules field)"
-    (prevLines, matchingLine:restOfLines) -> liftIO $ do
-      createBackupCopy fp
-      writeTextFile fp . DT.intercalate "\n" $  
-        prevLines ++ (matchingLine : whatToAdd : restOfLines)
+  unless (DT.strip whatToAdd `elem` map DT.strip allLines) $ 
+    case break whereToAdd allLines of
+      ([],_) -> throwError "malformed file (probably missing other-modules field)"
+      (_,[]) -> throwError "malformed file (probably missing other-modules field)"
+      (prevLines, matchingLine:restOfLines) -> liftIO $ do
+        createBackupCopy fp
+        print $ "Adding: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
+        writeTextFile fp . DT.intercalate "\n" $  
+          prevLines ++ (matchingLine : whatToAdd : restOfLines)
 
 addHandlerModuleToCabalFile :: FilePath -> EntityDef -> ErrT ()
 addHandlerModuleToCabalFile fp ed = do
@@ -214,7 +218,7 @@ addHandlerModuleToCabalFile fp ed = do
       dependsLines = [ "                 , unordered-containers          >= 0.1"
                      , "                 , aeson                         >= 0.6" ]
   addLineToFile fp ("other-modules" `DT.isInfixOf`) moduleLine
-  mapM_ (addUnqLineToFile fp ("build-depends" `DT.isInfixOf`)) dependsLines
+  mapM_ (addLineToFile fp ("build-depends" `DT.isInfixOf`)) dependsLines
         
 genRoutes :: EntityDef -> Text
 genRoutes ed = $(codegenFile "codegen/routes.cg")
@@ -227,6 +231,19 @@ capitalize t = DT.cons (DC.toUpper $ DT.head t) (DT.tail t)
 
 decapitalize :: Text -> Text
 decapitalize t = DT.cons (DC.toLower $ DT.head t) (DT.tail t)
+
+addDayStuff 
+  :: FilePath -- ^ model fp
+  -> FilePath -- ^ cabal fp
+  -> ErrT ()
+addDayStuff moduleFp cabalFp = do
+  appendLineToFile moduleFp "$(deriveJSON id ''Day)"
+  addLineToFile moduleFp
+                ("import Yesod" `DT.isInfixOf`) 
+                ("import Data.Aeson.TH (deriveJSON)\nimport Data.Time.Calendar (Day)")
+  addLineToFile cabalFp 
+                ("build-depends" `DT.isInfixOf`) 
+                "                 , time                          >= 1.4"
 
 addRoutes :: FilePath -> EntityDef -> ErrT ()
 addRoutes fp ed = liftIO $ do
@@ -248,54 +265,6 @@ createBackupCopy fp = copyRec fp (addExt fp)
         copyFile fpSrc fpDes 
         print $ ("Backed up " ++ show fpSrc ++ " to location: " ++ show fpDes :: Text)
 
-    -- parseField :: Parser FieldDesc
-    -- parseField = do
-    --   -- require a lowercase field name
-    --   fldName <- DT.cons <$> satisfy DC.isLower <*> Data.Attoparsec.Text.takeWhile isValidFieldChar
-    --   _ <- string "::"
-    --   (fldTypeName, nullable) <- parseNonNullable <|> parseNullable
-    --   case textToFieldType fldTypeName of
-    --     Left e -> error e
-    --     Right fldTypeVal -> return $ FieldDesc  fldName fldTypeVal nullable
-    --  where
-    --   parseType = DT.cons <$> satisfy DC.isUpper <*> Data.Attoparsec.Text.takeWhile isValidTypeChar
-    --   parseNonNullable = do
-    --     fldTypeName <- parseType
-    --     endOfInput
-    --     return (fldTypeName, False)
-    --   parseNullable = do
-    --     fldTypeName <- parseType
-    --     _ <- char '?'
-    --     endOfInput
-    --     return (fldTypeName, True)
-    --   isValidTypeChar = isValidFieldChar
-    --   isValidFieldChar c = any ($ c) [DC.isAlphaNum, (== '_')]
-
--- ** Entity Def stuff
--- Sample Def:
--- [ EntityDef 
---   { entityHaskell = HaskellName {unHaskellName = "Person"}
---   , entityDB = DBName {unDBName = "Person"}
---   , entityID = DBName {unDBName = "id"}
---   , entityAttrs = []
---   , entityFields = 
---     [ FieldDef 
---       { fieldHaskell = HaskellName {unHaskellName = "age"}
---       , fieldDB = DBName {unDBName = "age"}
---       , fieldType = FTTypeCon Nothing "Int"
---       , fieldAttrs = []
---       }
---     , FieldDef 
---       { fieldHaskell = HaskellName {unHaskellName = "name"}
---       , fieldDB = DBName {unDBName = "name"}
---       , fieldType = FTTypeCon Nothing "Text"
---       , fieldAttrs = ["Maybe"]
---       }
---     ]
---   , entityUniques = []
---   , entityDerives = ["Show","Read","Eq"]
---   , entityExtra = fromList []}]
-  
 -- | _TODO whip up some parsec to parse fieldName::Int? stuff the record below
 data FieldDesc = FieldDesc { fdName :: Text , fdType :: FdType , fdNullable :: Bool } 
   deriving (Show)
@@ -320,7 +289,7 @@ data FdType
   | FtText
   | FtHtml
   | FtDouble
-  deriving (Show)
+  deriving (Show, Eq, Ord, Read)
 
 ftToType :: FdType -> Text
 ftToType (PersistReference ref) = ref ++ "Id"

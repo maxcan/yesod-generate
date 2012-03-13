@@ -2,12 +2,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Handler.~{modelNameUpper} 
   ( get~{modelNameUpper}R
-  , post~{modelNameUpper}R
+  , post~{modelNameUpper}NewR
   , get~{modelNameUpper}NewR
-  , get~{modelNameUpper}DetailR
-  , put~{modelNameUpper}DetailR
-  , delete~{modelNameUpper}DetailR
+  , post~{modelNameUpper}EditR
   , get~{modelNameUpper}EditR
+  , post~{modelNameUpper}DeleteR
+  , get~{modelNameUpper}DetailR
   )
   where
 
@@ -41,12 +41,13 @@ optionsPersistKey filts ords toDisplay = fmap mkOptionList $ do
 ~{generatedFormFields}
 
 get~{modelNameUpper}R           :: Handler RepHtmlJson
-post~{modelNameUpper}R          :: Handler RepHtml
+post~{modelNameUpper}NewR          :: Handler RepHtml
 get~{modelNameUpper}NewR        :: Handler RepHtml
-get~{modelNameUpper}DetailR     :: ~{modelNameUpper}Id -> Handler RepHtmlJson
-put~{modelNameUpper}DetailR     :: ~{modelNameUpper}Id -> Handler RepHtml
-delete~{modelNameUpper}DetailR  :: ~{modelNameUpper}Id -> Handler RepHtml
+
+post~{modelNameUpper}EditR      :: ~{modelNameUpper}Id -> Handler RepHtml
 get~{modelNameUpper}EditR       :: ~{modelNameUpper}Id -> Handler RepHtml
+post~{modelNameUpper}DeleteR  :: ~{modelNameUpper}Id -> Handler RepHtml
+get~{modelNameUpper}DetailR     :: ~{modelNameUpper}Id -> Handler RepHtmlJson
 
 
 instance ToJSON (Entity ~{modelNameUpper}) where
@@ -58,7 +59,7 @@ get~{modelNameUpper}R = do
   (all~{modelNameUpper}s :: [Entity ~{modelNameUpper}]) <- runDB $ selectList [] []
   defaultLayoutJson $(widgetFile "~{modelNameLower}/index") all~{modelNameUpper}s
 
-post~{modelNameUpper}R = do
+post~{modelNameUpper}NewR = do
   ((formResult, formWidget), enctype) <- runFormPost $ ~{modelNameLower}Form Nothing
   case formResult of
     FormSuccess ~{modelNameLower} -> do
@@ -73,11 +74,7 @@ get~{modelNameUpper}NewR = do
   ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form Nothing
   defaultLayout $(widgetFile "~{modelNameLower}/new")
     
-get~{modelNameUpper}DetailR ~{modelNameLower}Id = do
-  ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
-  defaultLayoutJson $(widgetFile "~{modelNameLower}/show") (Entity ~{modelNameLower}Id ~{modelNameLower})
-
-put~{modelNameUpper}DetailR ~{modelNameLower}Id = do
+post~{modelNameUpper}EditR ~{modelNameLower}Id = do
   ((formResult, _), _) <- runFormPost $ ~{modelNameLower}Form Nothing
   case formResult of
     FormSuccess ~{modelNameLower} -> do
@@ -86,15 +83,18 @@ put~{modelNameUpper}DetailR ~{modelNameLower}Id = do
     _ -> setMessage "form error"
   redirect $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
 
-delete~{modelNameUpper}DetailR ~{modelNameLower}Id = do 
+get~{modelNameUpper}EditR ~{modelNameLower}Id = do
+  ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
+  ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form (Just ~{modelNameLower})
+  defaultLayout $(widgetFile "~{modelNameLower}/edit")
+
+post~{modelNameUpper}DeleteR ~{modelNameLower}Id = do 
   _ <- runDB $ get404 ~{modelNameLower}Id
   runDB $ delete ~{modelNameLower}Id
   setMessage . toHtml $ DT.concat ["Deleted ~{modelNameUpper} with id: ", toPathPiece ~{modelNameLower}Id]
   redirect ~{modelNameUpper}R
 
-
-get~{modelNameUpper}EditR ~{modelNameLower}Id = do
+get~{modelNameUpper}DetailR ~{modelNameLower}Id = do
   ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
-  ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form (Just ~{modelNameLower})
-  defaultLayout $(widgetFile "~{modelNameLower}/edit")
+  defaultLayoutJson $(widgetFile "~{modelNameLower}/show") (Entity ~{modelNameLower}Id ~{modelNameLower})
 
