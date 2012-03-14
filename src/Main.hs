@@ -241,7 +241,8 @@ decapitalize :: Text -> Text
 decapitalize t = DT.cons (DC.toLower $ DT.head t) (DT.tail t)
 
 ccImport :: Text; ccImport = "import Data.ISO3166_CountryCodes (CountryCode (..))"
-
+aeThImport :: Text; aeThImport = "import Data.Aeson.TH (deriveJSON)"
+dayImport :: Text; dayImport = "import Data.Time.Calendar (Day)"
 
 addCcStuff 
   :: FilePath -- ^ model fp
@@ -259,12 +260,9 @@ addDayStuff
   -> ErrT ()
 addDayStuff modelHsFp cabalFp = do
   appendLineToFile modelHsFp "$(deriveJSON id ''Day)"
-  addLineToFile modelHsFp
-                ("import Yesod" `DT.isInfixOf`) 
-                ("import Data.Aeson.TH (deriveJSON)\nimport Data.Time.Calendar (Day)")
-  addLineToFile cabalFp 
-                ("build-depends" `DT.isInfixOf`) 
-                "                 , time                          >= 1.4"
+  addImportToFile modelHsFp aeThImport
+  addImportToFile modelHsFp dayImport
+  addDependsModule cabalFp "                 , time                          >= 1.4"
 
 addRoutes :: FilePath -> EntityDef -> ErrT ()
 addRoutes fp ed = liftIO $ do
