@@ -40,6 +40,9 @@ for example:
     * *Note that we will assume you meant Text, since you should be.*
 * Text 
 * Day
+* CountryCode 
+    * *uses ISO3166 2 letter codes from iso3166-country-codes*
+    * Gives an example of how to add in a simple, but totally alien type to persistent
 
 ### possibly coming soon
 

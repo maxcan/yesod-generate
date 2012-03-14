@@ -109,6 +109,7 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
   --  FIRE THE MISSILES - This is where we pass the point of no return chk as much as possible above -- 
   ------------------------------------------------------------------------
   when (FtDay `elem` map fdType flds) $ addDayStuff modelModuleFp cabalFp
+  when (FtCountryCode `elem` map fdType flds) $ addCcStuff modelModuleFp cabalFp
   addHandlerModuleToCabalFile cabalFp entityDef
   addModelToModelsFile modelDefsFp entityDef
   genHandlerFile useBootstrap handlerFp entityDef
@@ -171,6 +172,7 @@ genTempates ed =
 genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
 genHandlerFile useBootstrap fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
+  let extraImports = if FtCountryCode `elem` map fdType flds then ccImport ++ "\n" else ""
   case flds of
     [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
     hdField:tlFields -> do 
@@ -193,6 +195,12 @@ appendLineToFile fp whatToAdd = do
     createBackupCopy fp
     print $ "Appending: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
     writeTextFile fp $ content ++ "\n" ++ whatToAdd
+
+addImportToFile :: FilePath -> Text -> ErrT ()
+addImportToFile fp tx = addLineToFile fp ("import" `DT.isPrefixOf`) tx
+
+addDependsModule :: FilePath -> Text -> ErrT ()
+addDependsModule fp md = addLineToFile fp ("other-modules" `DT.isInfixOf`) md
 
 addLineToFile
   :: FilePath
@@ -217,8 +225,8 @@ addHandlerModuleToCabalFile fp ed = do
       moduleLine = "                     " ++ moduleName
       dependsLines = [ "                 , unordered-containers          >= 0.1"
                      , "                 , aeson                         >= 0.6" ]
-  addLineToFile fp ("other-modules" `DT.isInfixOf`) moduleLine
-  mapM_ (addLineToFile fp ("build-depends" `DT.isInfixOf`)) dependsLines
+  addDependsModule fp moduleLine
+  mapM_ (addDependsModule fp) dependsLines
         
 genRoutes :: EntityDef -> Text
 genRoutes ed = $(codegenFile "codegen/routes.cg")
@@ -232,13 +240,26 @@ capitalize t = DT.cons (DC.toUpper $ DT.head t) (DT.tail t)
 decapitalize :: Text -> Text
 decapitalize t = DT.cons (DC.toLower $ DT.head t) (DT.tail t)
 
+ccImport :: Text; ccImport = "import Data.ISO3166_CountryCodes (CountryCode (..))"
+
+
+addCcStuff 
+  :: FilePath -- ^ model fp
+  -> FilePath -- ^ cabal fp
+  -> ErrT ()
+addCcStuff modelHsFp cabalFp = do
+  appendLineToFile modelHsFp "$(deriveJSON id ''CountryCode)"
+  appendLineToFile modelHsFp "derivePersistField \"CountryCode\""
+  addImportToFile modelHsFp ccImport
+  addDependsModule cabalFp "                 , iso3166-country-codes         >= 0.2"
+
 addDayStuff 
   :: FilePath -- ^ model fp
   -> FilePath -- ^ cabal fp
   -> ErrT ()
-addDayStuff moduleFp cabalFp = do
-  appendLineToFile moduleFp "$(deriveJSON id ''Day)"
-  addLineToFile moduleFp
+addDayStuff modelHsFp cabalFp = do
+  appendLineToFile modelHsFp "$(deriveJSON id ''Day)"
+  addLineToFile modelHsFp
                 ("import Yesod" `DT.isInfixOf`) 
                 ("import Data.Aeson.TH (deriveJSON)\nimport Data.Time.Calendar (Day)")
   addLineToFile cabalFp 
@@ -287,6 +308,7 @@ data FdType
   | FtInt
   | FtDay
   | FtText
+  | FtCountryCode
   | FtHtml
   | FtDouble
   deriving (Show, Eq, Ord, Read)
@@ -300,6 +322,7 @@ textToFdType "Int" = return FtInt
 textToFdType "Double" = return FtDouble
 textToFdType "Text" = return FtText
 textToFdType "String" = return FtText
+textToFdType "CountryCode" = return FtCountryCode
 
 -- textToFdType "Html" = return FtHtml
 textToFdType "Day" = return FtDay
@@ -307,11 +330,12 @@ textToFdType t | "Id" `DT.isSuffixOf` t = return . PersistReference $ take (leng
                   | otherwise = throwError $ "Bad Field Type:" ++ t
 
 formFieldForFdType :: FdType -> Text
-formFieldForFdType FtInt    = "intField   "
-formFieldForFdType FtDay    = "dayField   "
-formFieldForFdType FtText   = "textField  "
-formFieldForFdType FtHtml   = "htmlField  "
-formFieldForFdType FtDouble = "doubleField"
+formFieldForFdType FtInt          = "intField   "
+formFieldForFdType FtDay          = "dayField   "
+formFieldForFdType FtText         = "textField  "
+formFieldForFdType FtHtml         = "htmlField  "
+formFieldForFdType FtCountryCode  = "(selectField optionsEnum)"
+formFieldForFdType FtDouble       = "doubleField"
 formFieldForFdType (PersistReference _) = 
   "(selectField (optionsPersistKey [] [] (toPathPiece . entityKey)))"
 
