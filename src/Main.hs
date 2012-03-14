@@ -204,7 +204,7 @@ addImportToFile fp tx = addLineToFile fp ("import" `DT.isPrefixOf`) tx
 addOtherModule :: FilePath -> Text -> ErrT ()
 addOtherModule fp md = addLineToFile fp ("other-modules" `DT.isInfixOf`) md
 
--- | Add a module dependency to the build-depends section of the cabal file
+-- | Add a module dependency to the build-depends section of the cabal file. 
 addDependsModule :: FilePath -> Text -> ErrT ()
 addDependsModule fp md = addLineToFile fp ("build-depends" `DT.isInfixOf`) md
 
