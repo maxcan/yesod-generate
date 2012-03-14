@@ -123,9 +123,7 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
 addModelToModelsFile :: FilePath -> EntityDef -> ErrT ()
 addModelToModelsFile fp ed = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
-  liftIO $ do 
-    createBackupCopy fp
-    appendTextFile fp $ "\n" ++ DT.intercalate "\n" (modelLine : map fdToModel flds)
+  appendLineToFile fp $ DT.intercalate "\n" (modelLine : map fdToModel flds) ++ "\n"
  where
   modelLine = unHaskellName (entityHaskell ed) ++ " json"
   fdToModel fd =
@@ -194,7 +192,7 @@ appendLineToFile fp whatToAdd = do
   unless (DT.strip whatToAdd `elem` map DT.strip (lines content)) $ liftIO $ do
     createBackupCopy fp
     print $ "Appending: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
-    writeTextFile fp $ content ++ "\n" ++ whatToAdd
+    writeTextFile fp $ content ++ "\n" ++ whatToAdd ++ "\n"
 
 addImportToFile :: FilePath -> Text -> ErrT ()
 addImportToFile fp tx = addLineToFile fp ("import" `DT.isPrefixOf`) tx
@@ -271,10 +269,7 @@ addDayStuff modelHsFp cabalFp = do
   addDependsModule cabalFp "                 , time                          >= 1.4"
 
 addRoutes :: FilePath -> EntityDef -> ErrT ()
-addRoutes fp ed = liftIO $ do
-  createBackupCopy fp
-  appendTextFile fp "\n"
-  appendTextFile fp $ genRoutes ed
+addRoutes fp ed = appendLineToFile fp $ genRoutes ed
 
 -- | anytime we're messing with an existing file, create a backup copy as a courtesy
 --   to the users.  
