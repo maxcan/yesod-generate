@@ -60,7 +60,7 @@ get~{modelNameUpper}R = do
   defaultLayoutJson $(widgetFile "~{modelNameLower}/index") all~{modelNameUpper}s
 
 post~{modelNameUpper}NewR = do
-  ((formResult, formWidget), enctype) <- runFormPost $ ~{modelNameLower}Form Nothing
+  ((formResult, _), _) <- runFormPost $ ~{modelNameLower}Form Nothing
   case formResult of
     FormSuccess ~{modelNameLower} -> do
       ~{modelNameLower}Id <- runDB $ insert ~{modelNameLower}
@@ -78,10 +78,10 @@ post~{modelNameUpper}EditR ~{modelNameLower}Id = do
   ((formResult, _), _) <- runFormPost $ ~{modelNameLower}Form Nothing
   case formResult of
     FormSuccess ~{modelNameLower} -> do
-      ~{modelNameLower}Id <- runDB $ replace ~{modelNameLower}Id ~{modelNameLower}
+      new~{modelNameUpper}Id <- runDB $ replace ~{modelNameLower}Id ~{modelNameLower}
       setMessage "successfully replaced"
-    _ -> setMessage "form error"
-  redirect $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
+      redirect $ ~{modelNameUpper}DetailR new~{modelNameUpper}Id
+    _ -> setMessage "form error" >> redirect (~{modelNameUpper}DetailR ~{modelNameLower}Id)
 
 get~{modelNameUpper}EditR ~{modelNameLower}Id = do
   ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id

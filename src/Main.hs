@@ -199,8 +199,14 @@ appendLineToFile fp whatToAdd = do
 addImportToFile :: FilePath -> Text -> ErrT ()
 addImportToFile fp tx = addLineToFile fp ("import" `DT.isPrefixOf`) tx
 
+
+-- | Add a module to the other-modules section of the cabal file
+addOtherModule :: FilePath -> Text -> ErrT ()
+addOtherModule fp md = addLineToFile fp ("other-modules" `DT.isInfixOf`) md
+
+-- | Add a module dependency to the build-depends section of the cabal file
 addDependsModule :: FilePath -> Text -> ErrT ()
-addDependsModule fp md = addLineToFile fp ("other-modules" `DT.isInfixOf`) md
+addDependsModule fp md = addLineToFile fp ("build-depends" `DT.isInfixOf`) md
 
 addLineToFile
   :: FilePath
@@ -225,7 +231,7 @@ addHandlerModuleToCabalFile fp ed = do
       moduleLine = "                     " ++ moduleName
       dependsLines = [ "                 , unordered-containers          >= 0.1"
                      , "                 , aeson                         >= 0.6" ]
-  addDependsModule fp moduleLine
+  addOtherModule fp moduleLine
   mapM_ (addDependsModule fp) dependsLines
         
 genRoutes :: EntityDef -> Text
