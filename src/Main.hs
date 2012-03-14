@@ -172,7 +172,7 @@ genTempates ed =
 genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
 genHandlerFile useBootstrap fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
-  let extraImports = if FtCountryCode `elem` map fdType flds then ccImport ++ "\n" else ""
+  -- let extraImports = if FtCountryCode `elem` map fdType flds then ccImport ++ "\n" else ""
   case flds of
     [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
     hdField:tlFields -> do 
