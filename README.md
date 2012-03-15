@@ -44,6 +44,7 @@ for example:
     * *uses ISO3166 2 letter codes from iso3166-country-codes*
     * Gives an example of how to add in a simple, but totally alien type to persistent
 * Image
+    * **IF YOU ADD IMAGES, your JSON/VIEWs will be Ugly.  you are warned.**
     * naively stores image data in the database as a byte string
 
 ### possibly coming soon
