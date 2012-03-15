@@ -1,0 +1,8 @@
+
+get~{modelNameUpper}~{fieldNameUpper}ImageR  :: ~{modelNameUpper}Id -> Handler ()
+get~{modelNameUpper}~{fieldNameUpper}ImageR ~{modelNameLower}Id = do
+  ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
+  let 
+    ct :: BS.ByteString
+    ct = fromString $ DT.unpack $ ~{modelNameLower}~{fieldNameUpper}ContentType ~{modelNameLower} 
+  sendResponse (ct , toContent $ ~{modelNameLower}~{fieldNameUpper} ~{modelNameLower}) 

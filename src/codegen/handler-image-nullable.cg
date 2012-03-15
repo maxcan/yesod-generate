@@ -1,0 +1,11 @@
+
+get~{modelNameUpper}~{fieldNameUpper}ImageR  :: ~{modelNameUpper}Id -> Handler ()
+get~{modelNameUpper}~{fieldNameUpper}ImageR ~{modelNameLower}Id = do
+  ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
+  case (~{modelNameLower}~{fieldNameUpper} ~{modelNameLower},  ~{modelNameLower}~{fieldNameUpper}ContentType ~{modelNameLower}  ) of
+    (Just im, Just ctText) -> do
+      let 
+        ct :: BS.ByteString
+        ct = fromString $ DT.unpack ctText
+      sendResponse (ct , toContent im ) 
+    _ -> notFound

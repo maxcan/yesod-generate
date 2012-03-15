@@ -8,12 +8,13 @@ module Handler.~{modelNameUpper}
   , get~{modelNameUpper}EditR
   , post~{modelNameUpper}DeleteR
   , get~{modelNameUpper}DetailR
+  ~{imgHandlerExports}
   )
   where
 
 import Import
 import qualified Data.Text as DT
-
+~{imageImports}
 -- | The optionsPersist builtin to the Yesod.Forms package unfortunately only
 --   works well with whole persist entities.  We are only interested in the entity
 --   id s which is why we add in this function here:
@@ -38,8 +39,9 @@ optionsPersistKey filts ords toDisplay = fmap mkOptionList $ do
         }) pairs
 
 ~{modelNameLower}Form :: Maybe ~{modelNameUpper} -> Form ~{modelNameUpper}
-~{modelNameLower}Form m~{modelNameUpper} = ~{renderFxn} $ ~{modelNameUpper}
+~{modelNameLower}Form m~{modelNameUpper} = ~{renderFxn} $ ~{boxFxn}
 ~{generatedFormFields}
+~{formWhereDefs}
 
 get~{modelNameUpper}R        :: Handler RepHtmlJson
 post~{modelNameUpper}NewR    :: Handler RepHtml

@@ -16,6 +16,7 @@ import Control.Monad.Error.Class
 import Foundation
 import qualified Data.Text as DT 
 import qualified Data.Char as DC
+import qualified Data.Maybe as DY 
 import System.IO (putStrLn, print)
 import Text.Shakespeare.Text hiding (toText)
 import Filesystem.Path.CurrentOS (fromText, toText)
@@ -24,7 +25,8 @@ import Filesystem.Path hiding (concat)
 import System.Console.CmdArgs
 import Prelude (String)
 import qualified Database.Persist.Quasi as DPQ
-import Database.Persist.EntityDef (HaskellName (..), EntityDef (..), FieldDef (..), FieldType (..))
+import Database.Persist.EntityDef 
+import Control.Arrow (second)
 
 type ErrT = ErrorT Text IO
 main :: IO ()
@@ -82,7 +84,7 @@ main_ (Model useBootstrap useJson _rootDir _modelName _fields) = do
       modelModuleFp = rootDir ++ "Model.hs"
       appFp    = rootDir ++ "Application.hs"
   liftIO . print . DT.unpack $ "-----\nUsing persistText:\n" ++ persistText -- _DEBUG
-  entityDef <- case DPQ.parse (DPQ.PersistSettings $ const "blankName") persistText of
+  entityDef <- addContentTypeToEd <$> case DPQ.parse (DPQ.PersistSettings $ const "") persistText of
     [l] -> return l
     []  -> throwError "Parse returned no entity defs"
     _   -> throwError "parse returned too many entity defs"
@@ -111,7 +113,10 @@ main_ (Model useBootstrap useJson _rootDir _modelName _fields) = do
   ------------------------------------------------------------------------
   --  FIRE THE MISSILES - This is where we pass the point of no return chk as much as possible above -- 
   ------------------------------------------------------------------------
+  liftIO $ mapM_ createBackupCopy [routesFp, modelDefsFp, modelModuleFp, appFp, cabalFp]
+  addRoutes routesFp entityDef
   when (FtDay `elem` map fdType flds) $ addDayStuff modelModuleFp cabalFp useJson
+  when (FtImage `elem` map fdType flds) $ addImageStuff modelModuleFp routesFp entityDef useJson
   when (FtCountryCode `elem` map fdType flds) $ addCcStuff modelModuleFp cabalFp useJson
   addHandlerModuleToCabalFile cabalFp entityDef
   addModelToModelsFile modelDefsFp modelModuleFp entityDef useJson
@@ -120,7 +125,6 @@ main_ (Model useBootstrap useJson _rootDir _modelName _fields) = do
   addLineToFile appFp 
                 ("import Handler.Root" `DT.isInfixOf`) 
                 ("import " ++ persistEntityDefToModule entityDef)
-  addRoutes routesFp entityDef
   liftIO $ putStrLn "Finished Successfully!"
   
 addModelToModelsFile 
@@ -182,18 +186,63 @@ genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
 genHandlerFile useBootstrap fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
   -- let extraImports = if FtCountryCode `elem` map fdType flds then ccImport ++ "\n" else ""
+  let 
+    boxFxn = (if includesImage then ("gen" ++) else id) modelNameUpper 
+    includesImage = FtImage `elem` map fdType flds
+    imageImports = 
+      if includesImage then bslImport ++ "\n" ++ bsImport ++ "\n" ++ dsImport ++ "\n" else "\n"
+    formWhereDefs = if includesImage then wrappedBoxFxn else "\n"
+    wrappingFoldFxn (fd, _) s | fdType fd == FtImageContentType = s
+    wrappingFoldFxn (fd, elIdx) (boxArgs, conArgs) | fdNullable fd && (fdType fd == FtImage) = 
+      ( concat ["f", show elIdx, " ", boxArgs]
+      , concat [ " (fmap (BS.concat . BSL.toChunks . fileContent) f", show elIdx,")"
+               , " (fmap fileContentType f", show elIdx, ") ", conArgs] )
+    wrappingFoldFxn (fd, elIdx) (boxArgs, conArgs) | (fdType fd == FtImage) = 
+      ( concat ["f", show elIdx, " ", boxArgs]
+      , concat [ " (BS.concat . BSL.toChunks $ fileContent f", show elIdx,")"
+               , " (fileContentType f", show elIdx, ") ", conArgs] )
+    wrappingFoldFxn (_, elIdx) (boxArgs, conArgs) = 
+      ( concat ["f", show elIdx, " ", boxArgs], concat ["f", show elIdx, " ", conArgs])
+    wrappedBoxFxn = 
+      let (b,c) = foldr wrappingFoldFxn (DT.empty, DT.empty) $ zip flds [(1 :: Int)..] in 
+      concat [" where\n  ", boxFxn, " ", b, " = ", modelNameUpper, " ", c]
   case flds of
     [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
     hdField:tlFields -> do 
-      let generatedFormFields = "  " ++ DT.intercalate "\n  "
-            ( (fieldForFieldDesc True modelNameUpper hdField)
-            : (map (fieldForFieldDesc False modelNameUpper) tlFields ))
-      liftIO $ writeTextFile fp $(codegenFile "codegen/generic-handler.cg")
+      generatedFormFields <- (("  " ++) . DT.intercalate "\n  " . DY.catMaybes) <$> liftM2 (:)
+        (fieldForFieldDesc True modelNameUpper hdField)
+        (mapM (fieldForFieldDesc False modelNameUpper) tlFields )
+      let imgHandlers = concat $ map mkHandler imgFlds
+          imgFlds = filter ((== FtImage) . fdType) flds
+          imgHandlerExports = case imgFlds of
+            [] -> DT.empty
+            l  -> "\n  , " ++ DT.intercalate "\n  , " (map mkExport imgFlds)
+          mkExport fd = "get" ++ modelNameUpper ++ capitalize (fdName fd) ++ "ImageR"
+          mkHandler fd | fdNullable fd = 
+            let fieldNameUpper = capitalize $ fdName fd in
+            $(codegenFile "codegen/handler-image-nullable.cg")
+                       | otherwise = 
+            let fieldNameUpper = capitalize $ fdName fd in
+            $(codegenFile "codegen/handler-image.cg")
+      liftIO $ writeTextFile fp ( $(codegenFile "codegen/generic-handler.cg") ++ imgHandlers)
  where
   renderFxn = if useBootstrap then "renderBootstrap" else "renderDivs" :: Text
   modelNameUpper = unHaskellName (entityHaskell ed)
   modelNameLower = decapitalize modelNameUpper
-
+ 
+appendLineAfterImports
+  :: FilePath
+  -> Text
+  -> ErrT ()
+appendLineAfterImports fp tx = do
+  allLines <- liftIO $ lines <$> readTextFile fp
+  let (hdrLines, (impLines, remLines)) = second (break (not . isImp)) $ break isImp allLines
+      isImp = ("import" `DT.isPrefixOf`)
+  when (any (== []) [hdrLines, impLines, remLines]) $
+    throwError $ "Parsing failed.  Could not add line: " ++ tx
+  unless (DT.strip tx `elem` map DT.strip allLines) $ liftIO $
+    writeTextFile fp $ DT.intercalate "\n" $ hdrLines ++ impLines ++ ["",tx, ""] ++ remLines
+  
 appendLineToFile
   :: FilePath
   -> Text           -- ^ Text to import
@@ -201,7 +250,6 @@ appendLineToFile
 appendLineToFile fp whatToAdd = do
   content <- liftIO $ readTextFile fp
   unless (DT.strip whatToAdd `elem` map DT.strip (lines content)) $ liftIO $ do
-    createBackupCopy fp
     print $ "Appending: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
     writeTextFile fp $ content ++ "\n" ++ whatToAdd ++ "\n"
 
@@ -228,7 +276,6 @@ addLineToFile fp whereToAdd whatToAdd = do
       (_,[]) -> 
         throwError $ "malformed file: couldn't add: " ++ whatToAdd
       (prevLines, matchingLine:restOfLines) -> liftIO $ do
-        createBackupCopy fp
         print $ "Adding: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
         writeTextFile fp . DT.intercalate "\n" $  
           prevLines ++ (matchingLine : whatToAdd : restOfLines)
@@ -254,11 +301,18 @@ capitalize t = DT.cons (DC.toUpper $ DT.head t) (DT.tail t)
 decapitalize :: Text -> Text
 decapitalize t = DT.cons (DC.toLower $ DT.head t) (DT.tail t)
 
+-- ** Imports
 ccImport :: Text;   ccImport   = "import Data.ISO3166_CountryCodes (CountryCode (..))"
 aeThImport :: Text; aeThImport = "import Data.Aeson.TH (deriveJSON)"
 aeImport :: Text;   aeImport   = "import Data.Aeson"
 dayImport :: Text;  dayImport  = "import Data.Time.Calendar (Day)"
 hmlImport :: Text;  hmlImport  = "import qualified Data.HashMap.Lazy as HML"
+bslImport :: Text;  bslImport  = "import qualified Data.ByteString.Lazy as BSL"
+bsImport :: Text;   bsImport   = "import qualified Data.ByteString as BS"
+dsImport :: Text;   dsImport   = "import Data.String (fromString)"
+
+imageTypeSyn :: Text ; imageTypeSyn = "type Image = BS.ByteString"
+imageCtTypeSyn :: Text ; imageCtTypeSyn = "type ImageContentType = Text"
 
 addCcStuff 
   :: FilePath -- ^ model fp
@@ -270,6 +324,27 @@ addCcStuff modelHsFp cabalFp useJson = do
   appendLineToFile modelHsFp "derivePersistField \"CountryCode\""
   addImportToFile modelHsFp ccImport
   addDependsModule cabalFp "                 , iso3166-country-codes         >= 0.2"
+
+addImageStuff 
+  :: FilePath -- ^ model fp
+  -> FilePath -- ^ routes fp
+  -> EntityDef
+  -> Bool     -- ^ True for Using JSON too
+  -> ErrT ()
+addImageStuff modelHsFp routesFp ed useJson = do
+  addImportToFile modelHsFp bsImport
+  appendLineAfterImports modelHsFp imageTypeSyn
+  appendLineAfterImports modelHsFp imageCtTypeSyn
+  flds <- filter (\f -> fdType f == FtImage) <$> 
+          mapM persistFieldDefToFieldDesc (entityFields ed) -- will throw an erorr if there's a bad field
+  let appFxn fd = 
+        let fieldNameUpper = capitalize (fdName fd)
+            fieldNameLower = fdName fd in
+        appendLineToFile routesFp $(codegenFile "codegen/routes-image.cg")
+  mapM_ appFxn flds
+ where
+  modelNameUpper = unHaskellName (entityHaskell ed)
+  modelNameLower = decapitalize modelNameUpper
 
 addDayStuff 
   :: FilePath -- ^ model fp
@@ -304,6 +379,18 @@ createBackupCopy fp = copyRec fp (addExt fp)
 data FieldDesc = FieldDesc { fdName :: Text , fdType :: FdType , fdNullable :: Bool } 
   deriving (Show)
 
+addContentTypeToEd :: EntityDef -> EntityDef
+addContentTypeToEd ed = ed { entityFields = foldr foldFxn [] $ entityFields ed  }
+ where
+  mkContentType fd = fd 
+    { fieldType = FTTypeCon Nothing "ImageContentType"
+    , fieldHaskell = HaskellName ((unHaskellName $ fieldHaskell fd) ++ "ContentType")
+    , fieldDB = DBName ((unDBName $ fieldDB fd) ++ "ContentType")
+    }
+  foldFxn fd s  | fieldType fd == FTTypeCon Nothing "Image" = fd : mkContentType fd : s 
+                | otherwise = fd : s
+  
+  
 persistEntityDefToModule :: EntityDef -> Text
 persistEntityDefToModule ed = "Handler." ++ unHaskellName (entityHaskell ed)
 
@@ -325,6 +412,8 @@ data FdType
   | FtCountryCode
   | FtHtml
   | FtDouble
+  | FtImage
+  | FtImageContentType
   deriving (Show, Eq, Ord, Read)
 
 ftToType :: FdType -> Text
@@ -337,6 +426,8 @@ textToFdType "Double" = return FtDouble
 textToFdType "Text" = return FtText
 textToFdType "String" = return FtText
 textToFdType "CountryCode" = return FtCountryCode
+textToFdType "Image" = return FtImage
+textToFdType "ImageContentType" = return FtImageContentType
 
 -- textToFdType "Html" = return FtHtml
 textToFdType "Day" = return FtDay
@@ -352,9 +443,19 @@ formFieldForFdType FtCountryCode  = "(selectField optionsEnum)"
 formFieldForFdType FtDouble       = "doubleField"
 formFieldForFdType (PersistReference _) = 
   "(selectField (optionsPersistKey [] [] (toPathPiece . entityKey)))"
+formFieldForFdType f = error $ "cannot make a from field for : " ++ (show f :: Text)
 
-fieldForFieldDesc :: Bool -> Text -> FieldDesc -> Text
-fieldForFieldDesc isFirst modelNameUpper fd = concat
+fieldForFieldDesc :: Bool -> Text -> FieldDesc -> ErrT (Maybe Text)
+fieldForFieldDesc False _ fd | fdType fd == FtImageContentType = return Nothing
+fieldForFieldDesc True _ fd  | fdType fd == FtImageContentType = 
+  throwError "Found ImageContentType as first field.  We can't handle this.  Dying"
+fieldForFieldDesc isFirst _ fd  | fdType fd == FtImage = return . Just $ concat
+  [ "  ", if isFirst then "<$>" else "<*>"
+  , " ", if fdNullable fd then "fileAFormOpt" else "fileAFormReq"
+  , " \"", fdName fd, "\""
+  -- , " Nothing"
+  ]
+fieldForFieldDesc isFirst modelNameUpper fd = return . Just $ concat
   [ "  ", if isFirst then "<$>" else "<*>"
   , " ", if fdNullable fd then "aopt" else "areq"
   , " ", formFieldForFdType (fdType fd)
