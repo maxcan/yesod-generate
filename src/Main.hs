@@ -39,27 +39,30 @@ main = do
 data Generator
   = Model 
     { modelBootstrap :: Bool
+    , modelJson :: Bool
     , modelRootDir :: String
     , modelName  :: String -- ^ Cmdargs doesn't support Data.Text apparently
     , modelTypes :: [String]
     }
   | View
-    { viewBootstrap :: Bool }
+    { viewBootstrap :: Bool, viewJson :: Bool }
   deriving (Show, Eq, Ord, Data, Typeable, Read) 
 
 view :: Generator ; view = View
   { viewBootstrap  = def &= explicit &= name "b"  &= help "Use Bootstrap Style Forms"
+  , viewJson       = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
   } &= help "Not yet supported" 
 model :: Generator ; model = Model
   { modelBootstrap = def &= explicit &= name "b" &= help "Use Bootstrap Style Forms"
+  , modelJson      = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
   , modelRootDir =   "." &= explicit &= name "root" &= help "Root directory of project" &= opt ("." :: String)
   , modelName =      def &= typ "MODELNAME" &= argPos 0
   , modelTypes =     def &= typ "FIELDS" &= args
   } &= help  "Generate a Yesod Model and Views"
 
 main_ :: Generator -> ErrT ()
-main_ (View _) = throwError "view not supported"
-main_ (Model useBootstrap _rootDir _modelName _fields) = do 
+main_ (View _ _) = throwError "view not supported"
+main_ (Model useBootstrap useJson _rootDir _modelName _fields) = do 
   -- NOTE:
   --   if we add a Day to the model, need to add time to the cabal file and
   --   Data.Time.Calendar to model.hs
@@ -108,10 +111,10 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
   ------------------------------------------------------------------------
   --  FIRE THE MISSILES - This is where we pass the point of no return chk as much as possible above -- 
   ------------------------------------------------------------------------
-  when (FtDay `elem` map fdType flds) $ addDayStuff modelModuleFp cabalFp
-  when (FtCountryCode `elem` map fdType flds) $ addCcStuff modelModuleFp cabalFp
+  when (FtDay `elem` map fdType flds) $ addDayStuff modelModuleFp cabalFp useJson
+  when (FtCountryCode `elem` map fdType flds) $ addCcStuff modelModuleFp cabalFp useJson
   addHandlerModuleToCabalFile cabalFp entityDef
-  addModelToModelsFile modelDefsFp entityDef
+  addModelToModelsFile modelDefsFp modelModuleFp entityDef useJson
   genHandlerFile useBootstrap handlerFp entityDef
   writeTemplates 
   addLineToFile appFp 
@@ -120,12 +123,20 @@ main_ (Model useBootstrap _rootDir _modelName _fields) = do
   addRoutes routesFp entityDef
   liftIO $ putStrLn "Finished Successfully!"
   
-addModelToModelsFile :: FilePath -> EntityDef -> ErrT ()
-addModelToModelsFile fp ed = do
+addModelToModelsFile 
+  :: FilePath -- ^ path to config/models files
+  -> FilePath -- ^ path to Model.hs which imports the above file
+  -> EntityDef 
+  -> Bool -> ErrT ()
+addModelToModelsFile defFp hsFp ed useJson = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
-  appendLineToFile fp $ DT.intercalate "\n" (modelLine : map fdToModel flds) ++ "\n"
+  appendLineToFile defFp $ DT.intercalate "\n" (modelLine : map fdToModel flds) ++ "\n"
+  appendLineToFile hsFp $(codegenFile "codegen/model-to-json.cg")
+  addImportToFile hsFp aeImport
+  addImportToFile hsFp hmlImport
  where
-  modelLine = unHaskellName (entityHaskell ed) ++ " json"
+  modelLine = if useJson then modelNameUpper ++ " json" else modelNameUpper
+  modelNameUpper = unHaskellName (entityHaskell ed)
   fdToModel fd =
     "  " ++ fdName fd ++ " " ++ ftToType (fdType fd) ++ 
     if fdNullable fd then " Maybe" else ""
@@ -197,7 +208,6 @@ appendLineToFile fp whatToAdd = do
 addImportToFile :: FilePath -> Text -> ErrT ()
 addImportToFile fp tx = addLineToFile fp ("import" `DT.isPrefixOf`) tx
 
-
 -- | Add a module to the other-modules section of the cabal file
 addOtherModule :: FilePath -> Text -> ErrT ()
 addOtherModule fp md = addLineToFile fp ("other-modules" `DT.isInfixOf`) md
@@ -215,8 +225,8 @@ addLineToFile fp whereToAdd whatToAdd = do
   allLines <- liftIO $ lines <$> readTextFile fp
   unless (DT.strip whatToAdd `elem` map DT.strip allLines) $ 
     case break whereToAdd allLines of
-      ([],_) -> throwError "malformed file (probably missing other-modules field)"
-      (_,[]) -> throwError "malformed file (probably missing other-modules field)"
+      (_,[]) -> 
+        throwError $ "malformed file: couldn't add: " ++ whatToAdd
       (prevLines, matchingLine:restOfLines) -> liftIO $ do
         createBackupCopy fp
         print $ "Adding: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
@@ -244,16 +254,19 @@ capitalize t = DT.cons (DC.toUpper $ DT.head t) (DT.tail t)
 decapitalize :: Text -> Text
 decapitalize t = DT.cons (DC.toLower $ DT.head t) (DT.tail t)
 
-ccImport :: Text; ccImport = "import Data.ISO3166_CountryCodes (CountryCode (..))"
+ccImport :: Text;   ccImport   = "import Data.ISO3166_CountryCodes (CountryCode (..))"
 aeThImport :: Text; aeThImport = "import Data.Aeson.TH (deriveJSON)"
-dayImport :: Text; dayImport = "import Data.Time.Calendar (Day)"
+aeImport :: Text;   aeImport   = "import Data.Aeson"
+dayImport :: Text;  dayImport  = "import Data.Time.Calendar (Day)"
+hmlImport :: Text;  hmlImport  = "import qualified Data.HashMap.Lazy as HML"
 
 addCcStuff 
   :: FilePath -- ^ model fp
   -> FilePath -- ^ cabal fp
+  -> Bool     -- ^ use JSON
   -> ErrT ()
-addCcStuff modelHsFp cabalFp = do
-  appendLineToFile modelHsFp "$(deriveJSON id ''CountryCode)"
+addCcStuff modelHsFp cabalFp useJson = do
+  when useJson $ appendLineToFile modelHsFp "$(deriveJSON id ''CountryCode)"
   appendLineToFile modelHsFp "derivePersistField \"CountryCode\""
   addImportToFile modelHsFp ccImport
   addDependsModule cabalFp "                 , iso3166-country-codes         >= 0.2"
@@ -261,11 +274,13 @@ addCcStuff modelHsFp cabalFp = do
 addDayStuff 
   :: FilePath -- ^ model fp
   -> FilePath -- ^ cabal fp
+  -> Bool     -- ^ True for Using JSON too
   -> ErrT ()
-addDayStuff modelHsFp cabalFp = do
-  appendLineToFile modelHsFp "$(deriveJSON id ''Day)"
-  addImportToFile modelHsFp aeThImport
-  addImportToFile modelHsFp dayImport
+addDayStuff modelHsFp cabalFp useJson = do
+  when useJson $ do
+    appendLineToFile modelHsFp "$(deriveJSON id ''Day)"
+    addImportToFile modelHsFp aeThImport
+    addImportToFile modelHsFp dayImport
   addDependsModule cabalFp "                 , time                          >= 1.4"
 
 addRoutes :: FilePath -> EntityDef -> ErrT ()
