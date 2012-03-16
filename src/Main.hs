@@ -470,20 +470,6 @@ fieldForFieldDesc isFirst modelNameUpper fd = return . Just $ concat
   fieldNameUpper = capitalize $ fdName fd
   modelNameLower = decapitalize modelNameUpper
 
--- formText 
---   :: Bool -- ^ use bootstrap style forms
---   -> Text
---   -> [FieldDesc] 
---   -> ErrT Text
--- formText _ _ [] = throwError "need at least one field!"
--- formText useBootstrap modelNameUpper (hdField:tlFields) = return $ DT.intercalate "\n" $ 
---   [ concat [ modelNameLower, "Form :: Maybe ", modelNameUpper, " -> Form ", modelNameUpper]
---   , concat [ modelNameLower, "Form m", modelNameUpper ," = ", renderFxn ," $ ", modelNameUpper]
---   , fieldForFieldDesc True modelNameUpper hdField
---   ] ++ map (fieldForFieldDesc False modelNameUpper) tlFields 
---  where
---   modelNameLower = decapitalize modelNameUpper
-
 checkModelName :: FilePath -> Text -> ErrT ()
 checkModelName modelsFp n = do
   -- _TODO change this to conduits for good yesodkarma
