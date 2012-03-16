@@ -173,15 +173,6 @@ genTempates ed =
   modelNameLower = decapitalize modelNameUpper
   modelNameUpper = unHaskellName (entityHaskell ed)
 
--- writeTemplates :: FilePath -> EntityDef -> ErrT ()
--- writeTemplates fp ed = mapM_ writeTemplate $ genTempates ed
---   -- assumes that files have already been checked by chkTemplates
---  where
---   writeTemplate (n, t) = writeTextFile (genFp n) t
---   genFp s = fp ++ "templates" ++ fromText modelNameLower ++ addExtension (fromText s) "hamlet"
---   modelNameLower = decapitalize modelNameUpper
---   modelNameUpper = unHaskellName (entityHaskell ed)
-
 genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
 genHandlerFile useBootstrap fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
