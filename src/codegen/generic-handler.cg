@@ -15,6 +15,14 @@ module Handler.~{modelNameUpper}
 import Import
 import qualified Data.Text as DT
 ~{imageImports}
+
+-- | Default ToHtml instance for ~{modelNameUpper}
+widgetFor~{modelNameUpper} :: Entity ~{modelNameUpper} -> Widget
+widgetFor~{modelNameUpper} (Entity ky vl) = [whamlet|
+    <dl
+~{toHtmlDlItems}
+    |]
+
 -- | The optionsPersist builtin to the Yesod.Forms package unfortunately only
 --   works well with whole persist entities.  We are only interested in the entity
 --   id s which is why we add in this function here:

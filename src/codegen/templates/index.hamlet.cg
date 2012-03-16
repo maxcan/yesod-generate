@@ -1,10 +1,9 @@
 <h1>
   Showing all ~{modelNameUpper}s
-<dl
+<ol
   $forall cur~{modelNameUpper} <- all~{modelNameUpper}s
-    <dt
-      ~{modelNameUpper} Id: #{toPathPiece $ entityKey cur~{modelNameUpper}}
-    <dl
-      #{show $ entityVal cur~{modelNameUpper}}
+    <li
+      <a href=@{~{modelNameUpper}DetailR $ entityKey cur~{modelNameUpper}}
+        ~{modelNameUpper} Id: #{toPathPiece $ entityKey cur~{modelNameUpper}}
 
 

@@ -1,4 +1,4 @@
 <h1
   Showing ~{modelNameUpper} with Id = #{toPathPiece ~{modelNameLower}Id}
 <p>
-  #{show ~{modelNameLower} }
+  ^{widgetFor~{modelNameUpper} (Entity ~{modelNameLower}Id ~{modelNameLower})}

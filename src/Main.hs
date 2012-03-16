@@ -185,8 +185,8 @@ genTempates ed =
 genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
 genHandlerFile useBootstrap fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
-  -- let extraImports = if FtCountryCode `elem` map fdType flds then ccImport ++ "\n" else ""
   let 
+    -- Generate the Form Fields.  Because of the Image stuff, this is a bit complicated
     boxFxn = (if includesImage then ("gen" ++) else id) modelNameUpper 
     includesImage = FtImage `elem` map fdType flds
     imageImports = 
@@ -206,6 +206,17 @@ genHandlerFile useBootstrap fp ed  = do
     wrappedBoxFxn = 
       let (b,c) = foldr wrappingFoldFxn (DT.empty, DT.empty) $ zip flds [(1 :: Int)..] in 
       concat [" where\n  ", boxFxn, " ", b, " = ", modelNameUpper, " ", c]
+    -- Generate the dt/dd entries for the toHtml instance
+    dlSpacer = "\n      " 
+    toHtmlDlItems = concat $ map mkDl flds
+    mkDl fd | fdType fd == FtImage = concat
+      [ dlSpacer, "<dt>", fdName fd
+      , dlSpacer, "<dd>", dlSpacer, "  <img src=@{", modelNameUpper, capitalize (fdName fd), "ImageR ky}>"
+      , "\n"]
+    mkDl fd | otherwise = concat
+      [ dlSpacer, "<dt>", fdName fd
+      , dlSpacer, "<dd>#{show (", modelNameLower, capitalize (fdName fd), " vl)}"
+      , "\n"]
   case flds of
     [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
     hdField:tlFields -> do 
@@ -216,7 +227,7 @@ genHandlerFile useBootstrap fp ed  = do
           imgFlds = filter ((== FtImage) . fdType) flds
           imgHandlerExports = case imgFlds of
             [] -> DT.empty
-            l  -> "\n  , " ++ DT.intercalate "\n  , " (map mkExport imgFlds)
+            _  -> "\n  , " ++ DT.intercalate "\n  , " (map mkExport imgFlds)
           mkExport fd = "get" ++ modelNameUpper ++ capitalize (fdName fd) ++ "ImageR"
           mkHandler fd | fdNullable fd = 
             let fieldNameUpper = capitalize $ fdName fd in
@@ -285,6 +296,7 @@ addHandlerModuleToCabalFile fp ed = do
   let moduleName = persistEntityDefToModule ed
       moduleLine = "                     " ++ moduleName
       dependsLines = [ "                 , unordered-containers          >= 0.1"
+                     , "                 , blaze-html                    >= 0.4.3.1"
                      , "                 , aeson                         >= 0.6" ]
   addOtherModule fp moduleLine
   mapM_ (addDependsModule fp) dependsLines
@@ -314,6 +326,7 @@ dsImport :: Text;   dsImport   = "import Data.String (fromString)"
 imageTypeSyn :: Text ; imageTypeSyn = "type Image = BS.ByteString"
 imageCtTypeSyn :: Text ; imageCtTypeSyn = "type ImageContentType = Text"
 
+-- | Add the Country Code Imports
 addCcStuff 
   :: FilePath -- ^ model fp
   -> FilePath -- ^ cabal fp
