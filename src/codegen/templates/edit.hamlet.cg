@@ -1,4 +1,10 @@
-<h1>Edit ~{modelNameUpper} Form
-<form method=POST action=@{~{modelNameUpper}EditR ~{modelNameLower}Id} enctype=#{enctype}
-  ^{formWidget}
-  <input type=submit>
+< .container
+  <header class="jumbotron subhead" id="overview">
+    <h1> Edit ~{modelNameUpper} Form
+  <section 
+    < .row
+      < .span12
+        <form method=POST action=@{~{modelNameUpper}EditR ~{modelNameLower}Id} enctype=#{enctype}
+          ^{formWidget}
+          <input type=submit>
+

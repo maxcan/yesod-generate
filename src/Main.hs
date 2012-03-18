@@ -8,7 +8,7 @@
 -- | main entry point for the generators.
 --
 --   in the future, we may support multiple generators.  
---   we dont now
+--   we dont now.
 module Main where
 
 import Control.Monad.Error hiding (mapM_)
@@ -141,7 +141,7 @@ addModelToModelsFile defFp hsFp ed useJson = do
   when dirty $ appendLineToFile defFp "  -- BUILT ON A DIRTY REPO.  BE VERY CAREFUL.  Please report to i@cantor.mx"
   appendLineToFile defFp $ DT.intercalate "\n" (modelLine : map fdToModel flds) ++ "\n"
   appendLineToFile hsFp $(codegenFile "codegen/model-to-json.cg")
-  prependLineToFle hsFp flexibleInstances
+  prependLineToFile hsFp flexibleInstances
   addImportToFile hsFp aeImport
   addImportToFile hsFp hmlImport
  where

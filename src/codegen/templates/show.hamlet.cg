@@ -1,4 +1,7 @@
-<h1
-  Showing ~{modelNameUpper} with Id = #{toPathPiece ~{modelNameLower}Id}
-<p>
-  ^{widgetFor~{modelNameUpper} (Entity ~{modelNameLower}Id ~{modelNameLower})}
+< .container
+  <header class="jumbotron subhead" id="overview">
+    <h1> Showing ~{modelNameUpper} with Id = #{toPathPiece ~{modelNameLower}Id}
+  <section 
+    < .row
+      < .span12
+        ^{widgetFor~{modelNameUpper} (Entity ~{modelNameLower}Id ~{modelNameLower})}
