@@ -141,6 +141,7 @@ addModelToModelsFile defFp hsFp ed useJson = do
   when dirty $ appendLineToFile defFp "  -- BUILT ON A DIRTY REPO.  BE VERY CAREFUL.  Please report to i@cantor.mx"
   appendLineToFile defFp $ DT.intercalate "\n" (modelLine : map fdToModel flds) ++ "\n"
   appendLineToFile hsFp $(codegenFile "codegen/model-to-json.cg")
+  prependLineToFle hsFp flexibleInstances
   addImportToFile hsFp aeImport
   addImportToFile hsFp hmlImport
  where
@@ -250,6 +251,17 @@ appendLineAfterImports fp tx = do
   unless (DT.strip tx `elem` map DT.strip allLines) $ liftIO $
     writeTextFile fp $ DT.intercalate "\n" $ hdrLines ++ impLines ++ ["",tx, ""] ++ remLines
   
+prependLineToFile
+  :: FilePath
+  -> Text           -- ^ Text to import
+  -> ErrT ()
+prependLineToFile fp whatToAdd = do
+  content <- liftIO $ readTextFile fp
+  unless (DT.strip whatToAdd `elem` map DT.strip (lines content)) $ liftIO $ do
+    print $ "Appending: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
+    writeTextFile fp $ whatToAdd ++ "\n" ++ content
+
+  
 appendLineToFile
   :: FilePath
   -> Text           -- ^ Text to import
@@ -318,6 +330,8 @@ hmlImport :: Text;  hmlImport  = "import qualified Data.HashMap.Lazy as HML"
 bslImport :: Text;  bslImport  = "import qualified Data.ByteString.Lazy as BSL"
 bsImport :: Text;   bsImport   = "import qualified Data.ByteString as BS"
 dsImport :: Text;   dsImport   = "import Data.String (fromString)"
+flexibleInstances :: Text
+flexibleInstances   = "{-# LANGUAGE FlexibleInstances #-}"
 
 imageTypeSyn :: Text ; imageTypeSyn = "type Image = BS.ByteString"
 imageCtTypeSyn :: Text ; imageCtTypeSyn = "type ImageContentType = Text"
