@@ -39,6 +39,8 @@ executable             yesod-generate
                      , bytestring
                      , cmdargs            >= 0.9.3
                      , shakespeare-text   >= 0.11
+                     , template-haskell
+                     , vcs-revision
     ghc-options:       -Wall
     if flag(threaded)
         ghc-options:    -threaded
