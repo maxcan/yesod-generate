@@ -5,6 +5,9 @@
     < .span9
       ^{widgetFor~{modelNameUpper} (Entity ~{modelNameLower}Id ~{modelNameLower})}
     < .span3
-      <a href=@{~{modelNameUpper}EditR ~{modelNameLower}Id} .btn
-        Edit
-      
+      <p>
+        <a href=@{~{modelNameUpper}EditR ~{modelNameLower}Id} .btn>Edit
+      <p>
+        <form action=@{~{modelNameUpper}DeleteR ~{modelNameLower}Id} method=POST
+          <input type=submit value=Delete .btn .btn-danger>
+        
