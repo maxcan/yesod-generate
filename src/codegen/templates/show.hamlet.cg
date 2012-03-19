@@ -2,5 +2,9 @@
   <h1> Showing ~{modelNameUpper} with Id = #{toPathPiece ~{modelNameLower}Id}
 <section 
   < .row
-    < .span12
+    < .span9
       ^{widgetFor~{modelNameUpper} (Entity ~{modelNameLower}Id ~{modelNameLower})}
+    < .span3
+      <a href=@{~{modelNameUpper}EditR ~{modelNameLower}Id} .btn
+        Edit
+      

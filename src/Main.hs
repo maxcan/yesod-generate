@@ -430,6 +430,7 @@ persistFieldDefToFieldDesc fd = do
 data FdType 
   = PersistReference Text
   | FtInt
+  | FtBool
   | FtDay
   | FtText
   | FtCountryCode
@@ -445,6 +446,7 @@ ftToType f = drop (2 :: Int) . DT.pack $ show f
 
 textToFdType :: Text -> ErrT FdType
 textToFdType "Int" = return FtInt
+textToFdType "Bool" = return FtBool
 textToFdType "Double" = return FtDouble
 textToFdType "Text" = return FtText
 textToFdType "String" = return FtText
@@ -459,6 +461,7 @@ textToFdType t | "Id" `DT.isSuffixOf` t = return . PersistReference $ take (leng
 
 formFieldForFdType :: FdType -> Text
 formFieldForFdType FtInt          = "intField   "
+formFieldForFdType FtBool         = "boolField  "
 formFieldForFdType FtDay          = "dayField   "
 formFieldForFdType FtText         = "textField  "
 formFieldForFdType FtHtml         = "htmlField  "
