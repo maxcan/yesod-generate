@@ -69,8 +69,4 @@ getEntity
   -> f (Entity val)
 getEntity k = (Entity k) <$> (lift $ runDB (get404 k))
 
--- * classes for different kinds of views
-class ToDl a where toDl :: a -> Widget
-class ToTable a where toTable :: a -> Widget
-
 -- * Widgets 
