@@ -33,7 +33,7 @@ import Control.Arrow (second)
 type ErrT = ErrorT Text IO
 main :: IO ()
 main = do
-  command <- cmdArgsRun (cmdArgsMode $ modes [model, view] &= program "yesod-generate")
+  command <- cmdArgsRun (cmdArgsMode $ modes [model, widgets] &= program "yesod-generate")
   print command
   res <- runErrorT $ main_ command
   print (show res :: Text)
@@ -42,31 +42,28 @@ main = do
 -- ** Types and Annotations for CmdArgs
 data Generator
   = Model 
-    { modelBootstrap :: Bool
-    , modelJson :: Bool
+    { modelJson :: Bool
     , modelRootDir :: String
     , modelName  :: String -- ^ Cmdargs doesn't support Data.Text apparently
     , modelTypes :: [String]
     }
-  | View
-    { viewBootstrap :: Bool, viewJson :: Bool }
+  | Widgets
+    { viewJson :: Bool }
   deriving (Show, Eq, Ord, Data, Typeable, Read) 
 
-view :: Generator ; view = View
-  { viewBootstrap  = def &= explicit &= name "b"  &= help "Use Bootstrap Style Forms"
-  , viewJson       = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
+widgets :: Generator ; widgets = Widgets
+  { viewJson       = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
   } &= help "Not yet supported" 
 model :: Generator ; model = Model
-  { modelBootstrap = def &= explicit &= name "b" &= help "Use Bootstrap Style Forms"
-  , modelJson      = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
+  { modelJson      = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
   , modelRootDir =   "." &= explicit &= name "root" &= help "Root directory of project" &= opt ("." :: String)
   , modelName =      def &= typ "MODELNAME" &= argPos 0
   , modelTypes =     def &= typ "FIELDS" &= args
   } &= help  "Generate a Yesod Model and Views"
 
 main_ :: Generator -> ErrT ()
-main_ (View _ _) = throwError "view not supported"
-main_ (Model useBootstrap useJson _rootDir _modelName _fields) = do 
+main_ (Widgets _) = throwError "view not supported"
+main_ (Model useJson _rootDir _modelName _fields) = do 
   -- NOTE:
   --   if we add a Day to the model, need to add time to the cabal file and
   --   Data.Time.Calendar to model.hs
@@ -122,7 +119,7 @@ main_ (Model useBootstrap useJson _rootDir _modelName _fields) = do
   when (FtCountryCode `elem` map fdType flds) $ addCcStuff modelModuleFp cabalFp useJson
   addHandlerModuleToCabalFile cabalFp entityDef
   addModelToModelsFile modelDefsFp modelModuleFp entityDef useJson
-  genHandlerFile useBootstrap handlerFp entityDef
+  genHandlerFile handlerFp entityDef
   writeTemplates 
   addLineToFile appFp 
                 ("import Handler.Root" `DT.isInfixOf`) 
@@ -179,8 +176,8 @@ genTempates ed =
   modelNameLower = decapitalize modelNameUpper
   modelNameUpper = unHaskellName (entityHaskell ed)
 
-genHandlerFile :: Bool -> FilePath -> EntityDef -> ErrT ()
-genHandlerFile useBootstrap fp ed  = do
+genHandlerFile :: FilePath -> EntityDef -> ErrT ()
+genHandlerFile fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
   let 
     -- Generate the Form Fields.  Because of the Image stuff, this is a bit complicated
@@ -234,7 +231,7 @@ genHandlerFile useBootstrap fp ed  = do
             $(codegenFile "codegen/handler-image.cg")
       liftIO $ writeTextFile fp ( $(codegenFile "codegen/generic-handler.cg") ++ imgHandlers)
  where
-  renderFxn = if useBootstrap then "renderBootstrap" else "renderDivs" :: Text
+  renderFxn = "renderBootstrap" :: Text
   modelNameUpper = unHaskellName (entityHaskell ed)
   modelNameLower = decapitalize modelNameUpper
  
