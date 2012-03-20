@@ -1,0 +1,76 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE FlexibleInstances #-}
+module Widgets where
+
+import           Model
+import           Import
+import           Control.Monad.Trans.Class (MonadTrans)
+
+-- * persist utilities
+
+-- | The optionsPersist builtin to the Yesod.Forms package unfortunately only
+--   works well with whole persist entities.  We are only interested in the entity
+--   id s which is why we add in this function here:
+optionsPersistKey
+  :: (YesodPersist master
+     , PersistEntity a
+     , PersistQuery (YesodPersistBackend master) (GHandler sub master)
+     , PathPiece (Key (YesodPersistBackend master) a)
+     , RenderMessage master msg
+     , PersistEntityBackend a ~ YesodPersistBackend master) 
+  => [Filter a] 
+  -> [SelectOpt a] 
+  -> (Entity a -> msg) 
+  -> GHandler sub master (OptionList (Key (PersistEntityBackend a) a))
+optionsPersistKey filts ords toDisplay = fmap mkOptionList $ do
+    mr <- getMessageRender
+    pairs <- runDB $ selectList filts ords
+    return $ map (\(Entity key value) -> Option
+        { optionDisplay = mr (toDisplay $ Entity key value)
+        , optionInternalValue = key
+        , optionExternalValue = toPathPiece key
+        }) pairs
+
+optionsPersistJoined 
+  :: ( YesodPersistBackend master ~ PersistEntityBackend val
+     , PersistEntityBackend a ~ PersistEntityBackend val
+     , PersistQuery (PersistEntityBackend val) (GHandler sub master)
+     , RenderMessage master message
+     , YesodPersist master
+     , PathPiece (Key (PersistEntityBackend val) val)
+     , MonadTrans (PersistEntityBackend val),
+    PersistEntity a,
+    PersistEntity val)
+  => [Filter val]
+  -> [SelectOpt val]
+  -> (val -> Key (PersistEntityBackend val) a)
+  -> (Entity a -> Text)
+  -> GHandler sub master (OptionList (Key (PersistEntityBackend val) val))
+optionsPersistJoined filts ords toJoinId joinToMsg = fmap mkOptionList $ do
+    runDB $ do
+      pairs <- selectList filts ords
+      flip mapM pairs $ \(Entity key value) -> do
+        m <- fmap (joinToMsg . Entity (toJoinId value)) (get404 (toJoinId value))
+        return Option { optionDisplay = m
+                      , optionInternalValue = key
+                      , optionExternalValue = toPathPiece key }
+
+-- | Since we often want to get an Entity key value from a key, this
+--   convenience function saves us a lot of work
+getEntity 
+  :: ( YesodPersistBackend master ~ PersistEntityBackend val
+     , MonadLift (GHandler sub master) f
+     , YesodPersist master
+     , PersistStore (PersistEntityBackend val) (GHandler sub master)
+     , MonadTrans (PersistEntityBackend val)
+     , PersistEntity val
+     , Functor f) 
+  => Key (PersistEntityBackend val) val 
+  -> f (Entity val)
+getEntity k = (Entity k) <$> (lift $ runDB (get404 k))
+
+-- * classes for different kinds of views
+class ToDl a where toDl :: a -> Widget
+class ToTable a where toTable :: a -> Widget
+
+-- * Widgets 

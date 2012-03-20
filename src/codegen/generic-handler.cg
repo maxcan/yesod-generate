@@ -13,38 +13,9 @@ module Handler.~{modelNameUpper}
   where
 
 import Import
+import Widgets
 import qualified Data.Text as DT
 ~{imageImports}
-
--- | Default ToHtml instance for ~{modelNameUpper}
-widgetFor~{modelNameUpper} :: Entity ~{modelNameUpper} -> Widget
-widgetFor~{modelNameUpper} (Entity ky vl) = [whamlet|
-    <dl
-~{toHtmlDlItems}
-    |]
-
--- | The optionsPersist builtin to the Yesod.Forms package unfortunately only
---   works well with whole persist entities.  We are only interested in the entity
---   id s which is why we add in this function here:
-optionsPersistKey
-  :: (YesodPersist master
-     , PersistEntity a
-     , PersistQuery (YesodPersistBackend master) (GHandler sub master)
-     , PathPiece (Key (YesodPersistBackend master) a)
-     , RenderMessage master msg
-     , PersistEntityBackend a ~ YesodPersistBackend master) 
-  => [Filter a] 
-  -> [SelectOpt a] 
-  -> (Entity a -> msg) 
-  -> GHandler sub master (OptionList (Key (PersistEntityBackend a) a))
-optionsPersistKey filts ords toDisplay = fmap mkOptionList $ do
-    mr <- getMessageRender
-    pairs <- runDB $ selectList filts ords
-    return $ map (\(Entity key value) -> Option
-        { optionDisplay = mr (toDisplay $ Entity key value)
-        , optionInternalValue = key
-        , optionExternalValue = toPathPiece key
-        }) pairs
 
 ~{modelNameLower}Form :: Maybe ~{modelNameUpper} -> Form ~{modelNameUpper}
 ~{modelNameLower}Form m~{modelNameUpper} = ~{renderFxn} $ ~{boxFxn}

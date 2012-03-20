@@ -14,7 +14,7 @@ Generators to help kickstart yesod projects and promote best practices.
 ## Supported Generators
 
 * model
-* *nothing else at this time*
+* dumpwidgets - can dump a widgets.hs for the current model file
 
 ## Model Generation
 

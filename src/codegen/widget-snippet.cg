@@ -1,0 +1,21 @@
+instance ToWidget ~{appType} ~{appType} (Entity ~{modelNameUpper}) where toWidget = dlFor~{modelNameUpper}
+instance ToWidget ~{appType} ~{appType} [Entity ~{modelNameUpper}] where toWidget = tableFor~{modelNameUpper}
+
+tableFor~{modelNameUpper} :: [Entity ~{modelNameUpper}] -> Widget
+tableFor~{modelNameUpper} ~{modelNameLower}s = [whamlet|
+  <table .table
+    <thead
+      <tr>
+~{tableHeaders}
+    <tbody
+      $forall cur~{modelNameUpper} <- ~{modelNameLower}s
+        <tr>
+~{tableCells}          
+    |]
+
+dlFor~{modelNameUpper} :: Entity ~{modelNameUpper} -> Widget
+dlFor~{modelNameUpper} (Entity ky vl) = [whamlet|
+    <dl
+~{toHtmlDlItems}
+    |]
+
