@@ -3,8 +3,4 @@
 <section 
   < .row
     < .span12
-      <ol
-        $forall cur~{modelNameUpper} <- all~{modelNameUpper}s
-          <li
-            <a href=@{~{modelNameUpper}DetailR $ entityKey cur~{modelNameUpper}}
-              ~{modelNameUpper} Id: #{toPathPiece $ entityKey cur~{modelNameUpper}}
+      ^{toWidget all~{modelNameUpper}s}

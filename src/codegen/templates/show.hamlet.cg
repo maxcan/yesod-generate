@@ -3,7 +3,7 @@
 <section 
   < .row
     < .span9
-      ^{widgetFor~{modelNameUpper} (Entity ~{modelNameLower}Id ~{modelNameLower})}
+      ^{toWidget (Entity ~{modelNameLower}Id ~{modelNameLower})}
     < .span3
       <p>
         <a href=@{~{modelNameUpper}EditR ~{modelNameLower}Id} .btn>Edit
