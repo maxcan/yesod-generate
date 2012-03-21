@@ -35,7 +35,6 @@ optionsPersistJoined
   :: ( YesodPersistBackend master ~ PersistEntityBackend val
      , PersistEntityBackend a ~ PersistEntityBackend val
      , PersistQuery (PersistEntityBackend val) (GHandler sub master)
-     , RenderMessage master message
      , YesodPersist master
      , PathPiece (Key (PersistEntityBackend val) val)
      , MonadTrans (PersistEntityBackend val),
