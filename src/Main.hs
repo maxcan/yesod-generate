@@ -227,27 +227,58 @@ addWidgets :: FilePath -> Text -> EntityDef -> ErrT ()
 addWidgets fp appType ed = do 
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
   let
-    dlSpacer = "\n      " ; 
-    thSpacer = "\n        " ; tdSpacer = thSpacer ++ "  "
-    tableHeaders = concat $ flip map flds $ \fd -> concat [ thSpacer, "<th>", fdName fd]
-    tableCells = concat $ flip map flds $ \fd -> 
-      if fdType fd == FtImage
-        then
-          concat [ tdSpacer, "<td>", tdSpacer
-                 , "  <img height=45px src=@{", modelNameUpper, capitalize (fdName fd), "ImageR ky}>"
-                 ]
-        else
-          concat [ tdSpacer, "<td>#{show (",modelNameLower, capitalize (fdName fd)
-                 , " (entityVal cur", modelNameUpper, "))}" ] 
+    dlSpacer = "\n      "  
+    thSpacer = "\n        " 
+    tdSpacer = thSpacer ++ "  "
+    modelFld fd = modelNameLower ++ capitalize (fdName fd)
+    curEntityVal = " (entityVal cur" ++ modelNameUpper ++ ")"
+    curEntityKey = " (entityKey cur" ++ modelNameUpper ++ ")"
+    tableHeaders = concat . flip map flds $ \fd -> concat [ thSpacer, "<th>", fdName fd]
+    tableCells = concat . flip map flds $ \fd -> concat $ [ tdSpacer, "<td>" ] ++ case fdType fd of
+      FtImage -> tdSpacer : if fdNullable fd 
+        then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
+             , "    <img height=45px src=@{", capitalize (modelFld fd), "ImageR i}", tdSpacer 
+             , "  $nothing", tdSpacer
+             , "    NULL VALUE"
+             ]
+        else [ "  <img height=45px src=@{", capitalize (modelFld fd), "ImageR ", curEntityKey, "}" ]
+      FtPersistReference refText -> tdSpacer : if fdNullable fd
+        then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
+             , "    <a href=@{", capitalize refText, "DetailR i}>", refText, ": #{toPathPiece i}", tdSpacer
+             , "  $nothing", tdSpacer
+             , "    NULL VALUE" ]
+        else [ "  <a href=@{", capitalize refText, "DetailR (", modelFld fd,  curEntityVal, ")}" , tdSpacer
+             , "    ", refText, ": #{toPathPiece (", modelFld fd, curEntityVal, ")}"
+             ]
+      FtText -> tdSpacer : if fdNullable fd 
+        then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
+             , "    #{i}", tdSpacer
+             , "  $nothing", tdSpacer
+             , "    NULL VALUE" ]
+        else [ "  #{", modelFld fd, " (entityVal cur", modelNameUpper, ")}" ] 
+      _ -> [ "#{show (", modelFld fd, " (entityVal cur", modelNameUpper, "))}" ] 
     toHtmlDlItems = concat $ map mkDl flds
-    mkDl fd | fdType fd == FtImage = concat
-      [ dlSpacer, "<dt>", fdName fd
-      , dlSpacer, "<dd>", dlSpacer, "  <img src=@{", modelNameUpper, capitalize (fdName fd), "ImageR ky}>"
-      , "\n"]
-    mkDl fd | otherwise = concat
-      [ dlSpacer, "<dt>", fdName fd
-      , dlSpacer, "<dd>#{show (", modelNameLower, capitalize (fdName fd), " vl)}"
-      , "\n"]
+    mkDl fd = concat $ [ dlSpacer, "<dt>", fdName fd, dlSpacer, "<dd>"] ++ case fdType fd of
+      FtImage -> dlSpacer : if fdNullable fd 
+        then [ "NOTHING" ] 
+        else [dlSpacer, "  <img src=@{", capitalize (modelFld fd), "ImageR ky}>"]
+      FtPersistReference refText -> dlSpacer : if fdNullable fd 
+        then [ "  $maybe i <- ", modelFld fd, " vl", dlSpacer
+             , "    <a href=@{", capitalize refText, "DetailR i}>", refText, ": #{toPathPiece i}", dlSpacer
+             , "  $nothing", dlSpacer
+             , "    NULL VALUE" ]
+        else [ dlSpacer, "  <a href=@{", capitalize refText, "DetailR "
+             , "(", modelNameLower, capitalize (fdName fd), " vl)}"
+             , dlSpacer, "    ", refText, ": #{toPathPiece "
+             , "(", modelNameLower, capitalize (fdName fd), " vl)}"
+             ]
+      FtText -> dlSpacer : if fdNullable fd
+        then [ "  $maybe i <- ", modelFld fd, " vl", dlSpacer
+             , "    #{i}", dlSpacer
+             , "  $nothing", dlSpacer
+             , "    NULL VALUE" ]
+        else [ "  #{", modelNameLower, capitalize (fdName fd), " vl}" ]
+      _ ->   [ "  #{show (", modelNameLower, capitalize (fdName fd), " vl)}"]
   appendLineToFile fp $(codegenFile "codegen/widget-snippet.cg")
  where
   modelNameUpper = unHaskellName (entityHaskell ed)
@@ -494,7 +525,7 @@ persistFieldDefToFieldDesc fd = do
   return $ FieldDesc (unHaskellName $ fieldHaskell fd) tp nullable
 
 data FdType 
-  = PersistReference Text
+  = FtPersistReference Text
   | FtInt
   | FtBool
   | FtDay
@@ -507,7 +538,7 @@ data FdType
   deriving (Show, Eq, Ord, Read)
 
 ftToType :: FdType -> Text
-ftToType (PersistReference ref) = ref ++ "Id"
+ftToType (FtPersistReference ref) = ref ++ "Id"
 ftToType f = drop (2 :: Int) . DT.pack $ show f 
 
 textToFdType :: Text -> ErrT FdType
@@ -522,7 +553,7 @@ textToFdType "ImageContentType" = return FtImageContentType
 
 -- textToFdType "Html" = return FtHtml
 textToFdType "Day" = return FtDay
-textToFdType t | "Id" `DT.isSuffixOf` t = return . PersistReference $ take (length t - 2 :: Int) t
+textToFdType t | "Id" `DT.isSuffixOf` t = return . FtPersistReference $ take (length t - 2 :: Int) t
                   | otherwise = throwError $ "Bad Field Type:" ++ t
 
 formFieldForFdType :: FdType -> Text
@@ -533,7 +564,7 @@ formFieldForFdType FtText         = "textField  "
 formFieldForFdType FtHtml         = "htmlField  "
 formFieldForFdType FtCountryCode  = "(selectField optionsEnum)"
 formFieldForFdType FtDouble       = "doubleField"
-formFieldForFdType (PersistReference _) = 
+formFieldForFdType (FtPersistReference _) = 
   "(selectField (optionsPersistKey [] [] (toPathPiece . entityKey)))"
 formFieldForFdType f = error $ "cannot make a from field for : " ++ (show f :: Text)
 
