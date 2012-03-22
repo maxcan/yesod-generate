@@ -1,13 +1,13 @@
 <header class="jumbotron subhead" id="overview">
   <h1> Showing ~{modelNameUpper} with Id = #{toPathPiece ~{modelNameLower}Id}
-<section 
-  < .row
-    < .span9
+<section>
+  < .row>
+    < .span9>
       ^{toWidget (Entity ~{modelNameLower}Id ~{modelNameLower})}
-    < .span3
+    < .span3>
       <p>
         <a href=@{~{modelNameUpper}EditR ~{modelNameLower}Id} .btn>Edit
       <p>
-        <form action=@{~{modelNameUpper}DeleteR ~{modelNameLower}Id} method=POST
+        <form action=@{~{modelNameUpper}DeleteR ~{modelNameLower}Id} method=POST>
           <input type=submit value=Delete .btn .btn-danger>
         

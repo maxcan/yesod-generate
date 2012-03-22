@@ -237,17 +237,18 @@ addWidgets fp appType ed = do
     tableCells = concat . flip map flds $ \fd -> concat $ [ tdSpacer, "<td>" ] ++ case fdType fd of
       FtImage -> tdSpacer : if fdNullable fd 
         then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
-             , "    <img height=45px src=@{", capitalize (modelFld fd), "ImageR i}", tdSpacer 
+             , "    <img height=45px src=@{", capitalize (modelFld fd), "ImageR "
+             , curEntityKey, "}>", tdSpacer 
              , "  $nothing", tdSpacer
              , "    NULL VALUE"
              ]
-        else [ "  <img height=45px src=@{", capitalize (modelFld fd), "ImageR ", curEntityKey, "}" ]
+        else [ "  <img height=45px src=@{", capitalize (modelFld fd), "ImageR ", curEntityKey, "}>" ]
       FtPersistReference refText -> tdSpacer : if fdNullable fd
         then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
              , "    <a href=@{", capitalize refText, "DetailR i}>", refText, ": #{toPathPiece i}", tdSpacer
              , "  $nothing", tdSpacer
              , "    NULL VALUE" ]
-        else [ "  <a href=@{", capitalize refText, "DetailR (", modelFld fd,  curEntityVal, ")}" , tdSpacer
+        else [ "  <a href=@{", capitalize refText, "DetailR (", modelFld fd,  curEntityVal, ")}>" , tdSpacer
              , "    ", refText, ": #{toPathPiece (", modelFld fd, curEntityVal, ")}"
              ]
       FtText -> tdSpacer : if fdNullable fd 
@@ -261,7 +262,7 @@ addWidgets fp appType ed = do
     dlKyArg = if any ((== FtImage) . fdType) flds then "ky" else "_" :: Text
     mkDl fd = concat $ [ dlSpacer, "<dt>", fdName fd, dlSpacer, "<dd>"] ++ case fdType fd of
       FtImage -> dlSpacer : if fdNullable fd 
-        then [ "NOTHING" ] 
+        then [ "  No Image" ] 
         else [dlSpacer, "  <img src=@{", capitalize (modelFld fd), "ImageR ky}>"]
       FtPersistReference refText -> dlSpacer : if fdNullable fd 
         then [ "  $maybe i <- ", modelFld fd, " vl", dlSpacer
@@ -269,7 +270,7 @@ addWidgets fp appType ed = do
              , "  $nothing", dlSpacer
              , "    NULL VALUE" ]
         else [ dlSpacer, "  <a href=@{", capitalize refText, "DetailR "
-             , "(", modelNameLower, capitalize (fdName fd), " vl)}"
+             , "(", modelNameLower, capitalize (fdName fd), " vl)}>"
              , dlSpacer, "    ", refText, ": #{toPathPiece "
              , "(", modelNameLower, capitalize (fdName fd), " vl)}"
              ]

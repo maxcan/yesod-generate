@@ -1,12 +1,12 @@
 <header class="jumbotron subhead" id="overview">
   <h1> New ~{modelNameUpper} Form
-<section 
-  < .row
-    < .span12
-      <a href=@{~{modelNameUpper}NewR} .btn
+<section>
+  < .row>
+    < .span12>
+      <a href=@{~{modelNameUpper}NewR} .btn>
         New ~{modelNameUpper}
-  < .row
-    < .span12
+  < .row>
+    < .span12>
       <form method=POST action=@{~{modelNameUpper}NewR} enctype=#{enctype}
         ^{formWidget}
         <input type=submit>

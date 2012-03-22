@@ -1,6 +1,6 @@
 <header class="jumbotron subhead" id="overview">
   <h1> Showing All ~{modelNameUpper}s
-<section 
-  < .row
-    < .span12
+<section>
+  < .row>
+    < .span12>
       ^{toWidget all~{modelNameUpper}s}
