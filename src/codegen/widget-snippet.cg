@@ -14,7 +14,7 @@ tableFor~{modelNameUpper} ~{modelNameLower}s = [whamlet|
     |]
 
 dlFor~{modelNameUpper} :: Entity ~{modelNameUpper} -> Widget
-dlFor~{modelNameUpper} (Entity ky vl) = [whamlet|
+dlFor~{modelNameUpper} (Entity ~{dlKyArg} vl) = [whamlet|
     <dl
 ~{toHtmlDlItems}
     |]

@@ -258,6 +258,7 @@ addWidgets fp appType ed = do
         else [ "  #{", modelFld fd, " (entityVal cur", modelNameUpper, ")}" ] 
       _ -> [ "#{show (", modelFld fd, " (entityVal cur", modelNameUpper, "))}" ] 
     toHtmlDlItems = concat $ map mkDl flds
+    dlKyArg = if any ((== FtImage) . fdType) flds then "ky" else "_" :: Text
     mkDl fd = concat $ [ dlSpacer, "<dt>", fdName fd, dlSpacer, "<dd>"] ++ case fdType fd of
       FtImage -> dlSpacer : if fdNullable fd 
         then [ "NOTHING" ] 
