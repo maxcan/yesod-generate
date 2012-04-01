@@ -223,6 +223,9 @@ genBareWidgetsHsFile fp = do
   (liftIO $ isFile fp) >>= \b -> when b $ throwError "Widgets file exists, but the first check failed.  shouldn't happen"
   liftIO $ writeTextFile fp $(codegenFile "codegen/widgets.hs.cg")
 
+for :: [a] -> (a -> b) -> [b]
+for = flip map
+
 addWidgets :: FilePath -> Text -> EntityDef -> ErrT ()
 addWidgets fp appType ed = do 
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
@@ -233,8 +236,15 @@ addWidgets fp appType ed = do
     modelFld fd = modelNameLower ++ capitalize (fdName fd)
     curEntityVal = " (entityVal cur" ++ modelNameUpper ++ ")"
     curEntityKey = " (entityKey cur" ++ modelNameUpper ++ ")"
-    tableHeaders = concat . flip map flds $ \fd -> concat [ thSpacer, "<th>", fdName fd]
-    tableCells = concat . flip map flds $ \fd -> concat $ [ tdSpacer, "<td>" ] ++ case fdType fd of
+    tableHeaders = concat 
+      . ([thSpacer, "<th>"] ++) 
+      . for flds $ \fd -> concat [ thSpacer, "<th>", fdName fd]
+    tableCells = concat 
+      . ([ tdSpacer, "<td>"
+         , tdSpacer , "  <a href=@{",modelNameUpper,"DetailR ", curEntityKey, "}>"
+         , tdSpacer , "    Details"
+         ] ++)
+      . for flds $ \fd -> concat $ [ tdSpacer, "<td>" ] ++ case fdType fd of
       FtImage -> tdSpacer : if fdNullable fd 
         then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
              , "    <img height=45px src=@{", capitalize (modelFld fd), "ImageR "
@@ -262,7 +272,8 @@ addWidgets fp appType ed = do
     dlKyArg = if any ((== FtImage) . fdType) flds then "ky" else "_" :: Text
     mkDl fd = concat $ [ dlSpacer, "<dt>", fdName fd, dlSpacer, "<dd>"] ++ case fdType fd of
       FtImage -> dlSpacer : if fdNullable fd 
-        then [ "  No Image" ] 
+        then [ "  $maybe _ <- ", modelFld fd, " vl", dlSpacer
+             , "    <img  src=@{", capitalize (modelFld fd), "ImageR ky}>"]
         else [dlSpacer, "  <img src=@{", capitalize (modelFld fd), "ImageR ky}>"]
       FtPersistReference refText -> dlSpacer : if fdNullable fd 
         then [ "  $maybe i <- ", modelFld fd, " vl", dlSpacer
@@ -486,13 +497,13 @@ addRoutes fp ed = appendLineToFile fp $ genRoutes ed
 -- | anytime we're messing with an existing file, create a backup copy as a courtesy
 --   to the users.  
 createBackupCopy :: FilePath -> IO ()
-createBackupCopy fp = copyRec fp (addExt fp)
+createBackupCopy fp = copyRec fp (0 :: Int)
  where
-  addExt fp_ = addExtension fp_ "bak"
-  copyRec fpSrc fpDes = do
+  copyRec fpSrc i = do
+    let fpDes = addExtension fp (show i ++ ".bak")
     exists <- isFile fpDes
     if exists 
-      then copyRec fpSrc (addExt fpDes) 
+      then copyRec fpSrc (1 + i)
       else do
         copyFile fpSrc fpDes 
         print $ ("Backed up " ++ show fpSrc ++ " to location: " ++ show fpDes :: Text)

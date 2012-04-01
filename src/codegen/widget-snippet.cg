@@ -5,17 +5,14 @@ tableFor~{modelNameUpper} :: [Entity ~{modelNameUpper}] -> Widget
 tableFor~{modelNameUpper} ~{modelNameLower}s = [whamlet|
   <table .table>
     <thead>
-      <tr>
-~{tableHeaders}
+      <tr>~{tableHeaders}
     <tbody>
       $forall cur~{modelNameUpper} <- ~{modelNameLower}s
-        <tr>
-~{tableCells}          
+        <tr>~{tableCells}          
     |]
 
 dlFor~{modelNameUpper} :: Entity ~{modelNameUpper} -> Widget
 dlFor~{modelNameUpper} (Entity ~{dlKyArg} vl) = [whamlet|
-    <dl>
-~{toHtmlDlItems}
+    <dl>~{toHtmlDlItems}
     |]
 
