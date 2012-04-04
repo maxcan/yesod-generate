@@ -41,10 +41,10 @@ post~{modelNameUpper}NewR = do
     FormSuccess ~{modelNameLower} -> do
       ~{modelNameLower}Id <- runDB $ insert ~{modelNameLower}
       setMessage "successfully added"
-      redirect $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
+      redirectUltDest $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
     _ -> do 
       setMessage "form error"
-      redirect ~{modelNameUpper}NewR
+      redirectUltDest ~{modelNameUpper}NewR
     
 get~{modelNameUpper}NewR = do
   ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form Nothing
@@ -57,7 +57,7 @@ post~{modelNameUpper}EditR ~{modelNameLower}Id = do
       _ <- runDB $ replace ~{modelNameLower}Id ~{modelNameLower}
       setMessage "successfully replaced"
     _ -> setMessage "form error"
-  redirect $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
+  redirectUltDest $ ~{modelNameUpper}DetailR ~{modelNameLower}Id
 
 get~{modelNameUpper}EditR ~{modelNameLower}Id = do
   ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
@@ -68,7 +68,7 @@ post~{modelNameUpper}DeleteR ~{modelNameLower}Id = do
   _ <- runDB $ get404 ~{modelNameLower}Id
   runDB $ delete ~{modelNameLower}Id
   setMessage . toHtml $ DT.concat ["Deleted ~{modelNameUpper} with id: ", toPathPiece ~{modelNameLower}Id]
-  redirect ~{modelNameUpper}R
+  redirectUltDest ~{modelNameUpper}R
 
 get~{modelNameUpper}DetailR ~{modelNameLower}Id = do
   ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
