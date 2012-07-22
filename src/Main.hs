@@ -12,7 +12,6 @@
 module Main where
 
 import ClassyPrelude
--- import Control.Arrow (second)
 import Control.Monad.Error hiding (mapM, mapM_, lift, liftIO)
 import Control.Monad.Error.Class
 import Database.Persist.EntityDef
@@ -23,7 +22,6 @@ import Filesystem.Path.CurrentOS (fromText, toText)
 import Language.Haskell.TH.Syntax (Exp (..), Lit (..), runIO)
 import Prelude (String)
 import System.Console.CmdArgs
-import System.IO (print)
 import Text.Shakespeare.Text hiding (toText)
 import qualified Data.Char as DC
 import qualified Data.Maybe as DY
