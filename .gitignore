@@ -9,3 +9,5 @@ client_session_key.aes
 yesod/foobar/
 *.sqlite3
 tmp
+.hsenv*/
+dist_*/

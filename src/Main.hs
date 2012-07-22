@@ -7,31 +7,31 @@
 
 -- | main entry point for the generators.
 --
---   in the future, we may support multiple generators.  
+--   in the future, we may support multiple generators.
 --   we dont now.
 module Main where
 
-import Control.Monad.Error hiding (mapM_)
+import ClassyPrelude
+import Control.Arrow (second)
+import Control.Monad.Error hiding (mapM, mapM_, lift, liftIO)
 import Control.Monad.Error.Class
-import Foundation
+import Database.Persist.EntityDef
 import Distribution.VcsRevision.Git ( getRevision )
-import Language.Haskell.TH.Syntax (runIO)
-import qualified Data.Text as DT 
-import qualified Data.Char as DC
-import qualified Data.Maybe as DY 
-import System.IO (putStrLn, print)
-import Text.Shakespeare.Text hiding (toText)
-import Filesystem.Path.CurrentOS (fromText, toText)
 import Filesystem
 import Filesystem.Path hiding (concat)
-import System.Console.CmdArgs
+import Filesystem.Path.CurrentOS (fromText, toText)
+import Language.Haskell.TH.Syntax (runIO)
 import Prelude (String)
+import System.Console.CmdArgs
+import System.IO (print)
+import Text.Shakespeare.Text hiding (toText)
+import qualified Data.Char as DC
+import qualified Data.Maybe as DY
+import qualified Data.Text as DT
 import qualified Database.Persist.Quasi as DPQ
-import Database.Persist.EntityDef 
-import Control.Arrow (second)
 
 type ErrT = ErrorT Text IO
- 
+
 main :: IO ()
 main = do
   command <- cmdArgsRun (cmdArgsMode $ modes [model, dumpWidgets] &= program "yesod-generate")
@@ -42,23 +42,23 @@ main = do
 
 -- ** Types and Annotations for CmdArgs
 data Generator
-  = Model 
+  = Model
     { modelJson :: Bool
     , modelRootDir :: String
     , modelName  :: String -- ^ Cmdargs doesn't support Data.Text apparently
     , modelTypes :: [String]
     }
-  | DumpWidgets 
-    { dumpPath :: String 
-    , dumpRootDir :: String } 
+  | DumpWidgets
+    { dumpPath :: String
+    , dumpRootDir :: String }
   | Widgets
     { viewJson :: Bool }
-  deriving (Show, Eq, Ord, Data, Typeable, Read) 
+  deriving (Show, Eq, Ord, Data, Typeable)
 
 
 dumpWidgets :: Generator ; dumpWidgets = DumpWidgets
   { dumpPath       = "." &= explicit &= name "o" &= help "Where to dump the widgets to"
-  , dumpRootDir  =   "." &= explicit &= name "root" &= help "Root directory of project" 
+  , dumpRootDir  =   "." &= explicit &= name "root" &= help "Root directory of project"
   } &= help "Dump a widget file for an existing model"
 model :: Generator ; model = Model
   { modelJson      = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
@@ -71,13 +71,13 @@ main_ :: Generator -> ErrT ()
 main_ (Widgets _) = throwError "view not supported"
 main_ (DumpWidgets _dumpPath _rootDir) = do
   let rootDir   = fromText $ DT.pack _rootDir
-      modelDefsFp = rootDir ++ "config/models" 
+      modelDefsFp = rootDir ++ "config/models"
       widgetsFp   = rootDir ++ fromText (DT.pack _dumpPath)
       foundationFp = rootDir ++ "Foundation.hs"
   when (_dumpPath == ".") $ throwError "need a path to output too"
   widgetsExists <- liftIO $ isFile widgetsFp
   if widgetsExists then liftIO $ createBackupCopy widgetsFp else genBareWidgetsHsFile widgetsFp
-  foundationDatatype <- findFoundationDatatype foundationFp 
+  foundationDatatype <- findFoundationDatatype foundationFp
   modelContent <- liftIO $ readTextFile modelDefsFp
   entityDefs <- map addContentTypeToEd <$> case DPQ.parse (DPQ.PersistSettings $ const "") modelContent of
     [] -> throwError "Parse returned no entity defs"
@@ -88,7 +88,7 @@ main_ (DumpWidgets _dumpPath _rootDir) = do
   mapM_ (addWidgets widgetsFp foundationDatatype) entityDefs
   liftIO $ print ("Done! Note that you may need to add trasnformers to your build-depends if using yesod-generate for the first time" :: Text)
 
-main_ (Model useJson _rootDir _modelName _fields) = do 
+main_ (Model useJson _rootDir _modelName _fields) = do
   -- NOTE:
   --   if we add a Day to the model, need to add time to the cabal file and
   --   Data.Time.Calendar to model.hs
@@ -96,17 +96,17 @@ main_ (Model useJson _rootDir _modelName _fields) = do
   -- NEED TO ADD IMPORT TO Application.hs
 
 
-  let modelNameUpper = DT.pack _modelName 
+  let modelNameUpper = DT.pack _modelName
       rootDir   = fromText $ DT.pack _rootDir
       fieldsRaw = map DT.pack _fields
-      spacer = "\n  " 
-      persistText = modelNameUpper ++ spacer ++ 
+      spacer = "\n  "
+      persistText = modelNameUpper ++ spacer ++
         DT.intercalate " " ( map (DT.replace "," spacer) fieldsRaw)
       handlerFp = rootDir ++ "Handler" ++ addExtension (fromText modelNameUpper) "hs"
-      routesFp  = rootDir ++ "config/routes" 
+      routesFp  = rootDir ++ "config/routes"
       widgetsFp = rootDir ++ "Widgets.hs"
       foundationFp = rootDir ++ "Foundation.hs"
-      modelDefsFp = rootDir ++ "config/models" 
+      modelDefsFp = rootDir ++ "config/models"
       modelModuleFp = rootDir ++ "Model.hs"
       appFp    = rootDir ++ "Application.hs"
   liftIO . print . DT.unpack $ "-----\nUsing persistText:\n" ++ persistText -- _DEBUG
@@ -116,13 +116,13 @@ main_ (Model useJson _rootDir _modelName _fields) = do
     _   -> throwError "parse returned too many entity defs"
   -- sanity check that files exist
   checkFileExists routesFp
-  checkFileExists modelDefsFp  
+  checkFileExists modelDefsFp
   writeTemplates <- chkTemplates  rootDir entityDef -- verify that we aren't overwriting any templates
   -- check fields:
-  flds <- mapM persistFieldDefToFieldDesc $ entityFields entityDef -- will throw an erorr if there's a bad field
+  flds :: [FieldDesc] <- mapM persistFieldDefToFieldDesc $ entityFields entityDef -- will throw an erorr if there's a bad field
   checkModelName modelDefsFp modelNameUpper
   when (length (entityFields entityDef) < (1 :: Int)) $ throwError "Need at least one field!"
-  when (modelNameUpper /= unHaskellName (entityHaskell entityDef)) 
+  when (modelNameUpper /= unHaskellName (entityHaskell entityDef))
     $ throwError "sanity check failed - model name NOT equal to parsed model name"
   -- check for cabal file:
   cabalFp <- do
@@ -136,10 +136,10 @@ main_ (Model useJson _rootDir _modelName _fields) = do
   liftIO (putStrLn "Checking handler directory" >> createDirectory True "Handler")
   handlerExists <- liftIO $ isFile handlerFp
   widgetsExists <- liftIO $ isFile widgetsFp
-  foundationDatatype <- findFoundationDatatype foundationFp 
+  foundationDatatype <- findFoundationDatatype foundationFp
   when handlerExists $ throwError "Handler File already exists, cannot continue"
   ------------------------------------------------------------------------
-  --  FIRE THE MISSILES - This is where we pass the point of no return chk as much as possible above -- 
+  --  FIRE THE MISSILES - This is where we pass the point of no return chk as much as possible above --
   ------------------------------------------------------------------------
   if widgetsExists then liftIO $ createBackupCopy widgetsFp else genBareWidgetsHsFile widgetsFp
   liftIO $ mapM_ createBackupCopy [routesFp, modelDefsFp, modelModuleFp, appFp, cabalFp]
@@ -151,19 +151,19 @@ main_ (Model useJson _rootDir _modelName _fields) = do
   addModelToModelsFile modelDefsFp modelModuleFp entityDef useJson
   genHandlerFile handlerFp entityDef
   addWidgets     widgetsFp foundationDatatype entityDef
-  writeTemplates 
-  addLineToFile appFp 
-                ("import Handler.Root" `DT.isInfixOf`) 
+  writeTemplates
+  addLineToFile appFp
+                ("import Handler.Root" `DT.isInfixOf`)
                 ("import " ++ persistEntityDefToModule entityDef)
   liftIO $ putStrLn "Finished Successfully!"
-  
-addModelToModelsFile 
+
+addModelToModelsFile
   :: FilePath -- ^ path to config/models files
   -> FilePath -- ^ path to Model.hs which imports the above file
-  -> EntityDef 
+  -> EntityDef
   -> Bool -> ErrT ()
 addModelToModelsFile defFp hsFp ed useJson = do
-  flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
+  flds :: [FieldDesc] <- mapM persistFieldDefToFieldDesc $ entityFields ed
   -- (gitRev, dirty) <- $(runIO (maybe (error ("NO GIT REPO DATA AVAILABLE" :: Text)) return =<< getRevision))
   -- appendLineToFile defFp . DT.pack $ "  -- generated by yesod-generate " ++ gitRev
   -- when dirty $ appendLineToFile defFp "  -- BUILT ON A DIRTY REPO.  BE VERY CAREFUL.  Please report to i@cantor.mx"
@@ -176,30 +176,30 @@ addModelToModelsFile defFp hsFp ed useJson = do
   modelLine = if useJson then modelNameUpper ++ " json" else modelNameUpper
   modelNameUpper = unHaskellName (entityHaskell ed)
   fdToModel fd =
-    "  " ++ fdName fd ++ " " ++ ftToType (fdType fd) ++ 
+    "  " ++ fdName fd ++ " " ++ ftToType (fdType fd) ++
     if fdNullable fd then " Maybe" else ""
 
 -- | if we pass the tests, this actually returns the function to call
 chkTemplates :: FilePath -> EntityDef -> ErrT (ErrT ())
-chkTemplates fp ed = do 
-  liftIO $ putStrLn "Checking template directory" 
+chkTemplates fp ed = do
+  liftIO $ putStrLn "Checking template directory"
   liftIO $ createDirectory True genDirFp
-  mapM_ chkTmplClean $ map fst $ genTempates ed
-  return $ mapM_ writeTemplate $ genTempates ed
+  mapM_ chkTmplClean $ genTempates ed
+  return . liftIO $ mapM_ writeTemplate (genTempates ed)
  where
-  writeTemplate (n, t) = liftIO $ writeTextFile (genFp n) t
+  writeTemplate (n, t) =  writeTextFile (genFp n) t
   modelNameLower = decapitalize modelNameUpper
   modelNameUpper = unHaskellName (entityHaskell ed)
   genDirFp = fp ++ "templates" ++ fromText modelNameLower
   genFp s = genDirFp ++ addExtension (fromText s) "hamlet"
-  chkTmplClean s = do
+  chkTmplClean :: (Text, Text)  -> ErrT (); chkTmplClean (s,_) = do
     exists <- liftIO . isFile $ genFp s
     when exists $ throwError ("Template File Exists: " ++ modelNameLower ++ "/" ++ s)
 
 findFoundationDatatype :: FilePath -> ErrT Text
 findFoundationDatatype fp = do
   content <- liftIO $ readTextFile fp
-  case filter ("mkYesod" `DT.isPrefixOf`) . map DT.strip $ lines content of
+  case filter ("mkYesod" `DT.isPrefixOf`) . map DT.strip $ DT.lines content of
     [] -> throwError "Could not find mkYesod line in Foundation"
     [l] -> do
       let dt = DT.takeWhile (/= '"') $ DT.drop 1 $ DT.dropWhile (/= '"') l
@@ -208,11 +208,11 @@ findFoundationDatatype fp = do
     _ -> throwError "Found too many potential datatypes"
 
 genTempates :: EntityDef -> [ ( Text, Text) ]
-genTempates ed = 
-  [ ("edit" , $(codegenFile "codegen/templates/edit.hamlet.cg")) 
-  , ("new"  , $(codegenFile "codegen/templates/new.hamlet.cg")) 
-  , ("show" , $(codegenFile "codegen/templates/show.hamlet.cg")) 
-  , ("index", $(codegenFile "codegen/templates/index.hamlet.cg")) 
+genTempates ed =
+  [ ("edit" , $(codegenFile "codegen/templates/edit.hamlet.cg"))
+  , ("new"  , $(codegenFile "codegen/templates/new.hamlet.cg"))
+  , ("show" , $(codegenFile "codegen/templates/show.hamlet.cg"))
+  , ("index", $(codegenFile "codegen/templates/index.hamlet.cg"))
   ]
  where
   modelNameLower = decapitalize modelNameUpper
@@ -227,28 +227,28 @@ for :: [a] -> (a -> b) -> [b]
 for = flip map
 
 addWidgets :: FilePath -> Text -> EntityDef -> ErrT ()
-addWidgets fp appType ed = do 
+addWidgets fp appType ed = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
   let
-    dlSpacer = "\n      "  
-    thSpacer = "\n        " 
+    dlSpacer = "\n      "
+    thSpacer = "\n        "
     tdSpacer = thSpacer ++ "  "
     modelFld fd = modelNameLower ++ capitalize (fdName fd)
     curEntityVal = " (entityVal cur" ++ modelNameUpper ++ ")"
     curEntityKey = " (entityKey cur" ++ modelNameUpper ++ ")"
-    tableHeaders = concat 
-      . ([thSpacer, "<th>"] ++) 
+    tableHeaders = concat
+      . ([thSpacer, "<th>"] ++)
       . for flds $ \fd -> concat [ thSpacer, "<th>", fdName fd]
-    tableCells = concat 
+    tableCells = concat
       . ([ tdSpacer, "<td>"
          , tdSpacer , "  <a href=@{",modelNameUpper,"DetailR ", curEntityKey, "}>"
          , tdSpacer , "    Details"
          ] ++)
       . for flds $ \fd -> concat $ [ tdSpacer, "<td>" ] ++ case fdType fd of
-      FtImage -> tdSpacer : if fdNullable fd 
+      FtImage -> tdSpacer : if fdNullable fd
         then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
              , "    <img height=45px src=@{", capitalize (modelFld fd), "ImageR "
-             , curEntityKey, "}>", tdSpacer 
+             , curEntityKey, "}>", tdSpacer
              , "  $nothing", tdSpacer
              , "    NULL VALUE"
              ]
@@ -261,21 +261,21 @@ addWidgets fp appType ed = do
         else [ "  <a href=@{", capitalize refText, "DetailR (", modelFld fd,  curEntityVal, ")}>" , tdSpacer
              , "    ", refText, ": #{toPathPiece (", modelFld fd, curEntityVal, ")}"
              ]
-      FtText -> tdSpacer : if fdNullable fd 
+      FtText -> tdSpacer : if fdNullable fd
         then [ "  $maybe i <- ", modelFld fd, curEntityVal, tdSpacer
              , "    #{i}", tdSpacer
              , "  $nothing", tdSpacer
              , "    NULL VALUE" ]
-        else [ "  #{", modelFld fd, " (entityVal cur", modelNameUpper, ")}" ] 
-      _ -> [ "#{show (", modelFld fd, " (entityVal cur", modelNameUpper, "))}" ] 
+        else [ "  #{", modelFld fd, " (entityVal cur", modelNameUpper, ")}" ]
+      _ -> [ "#{show (", modelFld fd, " (entityVal cur", modelNameUpper, "))}" ]
     toHtmlDlItems = concat $ map mkDl flds
     dlKyArg = if any ((== FtImage) . fdType) flds then "ky" else "_" :: Text
     mkDl fd = concat $ [ dlSpacer, "<dt>", fdName fd, dlSpacer, "<dd>"] ++ case fdType fd of
-      FtImage -> dlSpacer : if fdNullable fd 
+      FtImage -> dlSpacer : if fdNullable fd
         then [ "  $maybe _ <- ", modelFld fd, " vl", dlSpacer
              , "    <img  src=@{", capitalize (modelFld fd), "ImageR ky}>"]
         else [dlSpacer, "  <img src=@{", capitalize (modelFld fd), "ImageR ky}>"]
-      FtPersistReference refText -> dlSpacer : if fdNullable fd 
+      FtPersistReference refText -> dlSpacer : if fdNullable fd
         then [ "  $maybe i <- ", modelFld fd, " vl", dlSpacer
              , "    <a href=@{", capitalize refText, "DetailR i}>", refText, ": #{toPathPiece i}", dlSpacer
              , "  $nothing", dlSpacer
@@ -300,31 +300,31 @@ addWidgets fp appType ed = do
 genHandlerFile :: FilePath -> EntityDef -> ErrT ()
 genHandlerFile fp ed  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
-  let 
+  let
     -- Generate the Form Fields.  Because of the Image stuff, this is a bit complicated
-    boxFxn = (if includesImage then ("gen" ++) else id) modelNameUpper 
+    boxFxn = (if includesImage then ("gen" ++) else id) modelNameUpper
     includesImage = FtImage `elem` map fdType flds
-    imageImports = 
+    imageImports =
       if includesImage then bslImport ++ "\n" ++ bsImport ++ "\n" ++ dsImport ++ "\n" else "\n"
     formWhereDefs = if includesImage then wrappedBoxFxn else "\n"
-    wrappingFoldFxn (fd, _) s | fdType fd == FtImageContentType = s
-    wrappingFoldFxn (fd, elIdx) (boxArgs, conArgs) | fdNullable fd && (fdType fd == FtImage) = 
+    wrappingFoldFxn s (fd, _) | fdType fd == FtImageContentType = s
+    wrappingFoldFxn (boxArgs, conArgs) (fd, elIdx) | fdNullable fd && (fdType fd == FtImage) =
       ( concat ["f", show elIdx, " ", boxArgs]
       , concat [ " (fmap (BS.concat . BSL.toChunks . fileContent) f", show elIdx,")"
                , " (fmap fileContentType f", show elIdx, ") ", conArgs] )
-    wrappingFoldFxn (fd, elIdx) (boxArgs, conArgs) | (fdType fd == FtImage) = 
+    wrappingFoldFxn (boxArgs, conArgs) (fd, elIdx) | (fdType fd == FtImage) =
       ( concat ["f", show elIdx, " ", boxArgs]
       , concat [ " (BS.concat . BSL.toChunks $ fileContent f", show elIdx,")"
                , " (fileContentType f", show elIdx, ") ", conArgs] )
-    wrappingFoldFxn (_, elIdx) (boxArgs, conArgs) = 
+    wrappingFoldFxn (boxArgs, conArgs) (_, elIdx) =
       ( concat ["f", show elIdx, " ", boxArgs], concat ["f", show elIdx, " ", conArgs])
-    wrappedBoxFxn = 
-      let (b,c) = foldr wrappingFoldFxn (DT.empty, DT.empty) $ zip flds [(1 :: Int)..] in 
+    wrappedBoxFxn =
+      let (b,c) = fold wrappingFoldFxn (DT.empty, DT.empty) $ zip flds [(1 :: Int)..] in
       concat [" where\n  ", boxFxn, " ", b, " = ", modelNameUpper, " ", c]
     -- Generate the dt/dd entries for the toHtml instance
   case flds of
     [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
-    hdField:tlFields -> do 
+    hdField:tlFields -> do
       generatedFormFields <- (("  " ++) . DT.intercalate "\n  " . DY.catMaybes) <$> liftM2 (:)
         (fieldForFieldDesc True modelNameUpper hdField)
         (mapM (fieldForFieldDesc False modelNameUpper) tlFields )
@@ -334,10 +334,10 @@ genHandlerFile fp ed  = do
             [] -> DT.empty
             _  -> "\n  , " ++ DT.intercalate "\n  , " (map mkExport imgFlds)
           mkExport fd = "get" ++ modelNameUpper ++ capitalize (fdName fd) ++ "ImageR"
-          mkHandler fd | fdNullable fd = 
+          mkHandler fd | fdNullable fd =
             let fieldNameUpper = capitalize $ fdName fd in
             $(codegenFile "codegen/handler-image-nullable.cg")
-                       | otherwise = 
+                       | otherwise =
             let fieldNameUpper = capitalize $ fdName fd in
             $(codegenFile "codegen/handler-image.cg")
       liftIO $ writeTextFile fp ( $(codegenFile "codegen/generic-handler.cg") ++ imgHandlers)
@@ -345,38 +345,38 @@ genHandlerFile fp ed  = do
   renderFxn = "renderBootstrap" :: Text
   modelNameUpper = unHaskellName (entityHaskell ed)
   modelNameLower = decapitalize modelNameUpper
- 
+
 appendLineAfterImports
   :: FilePath
   -> Text
   -> ErrT ()
 appendLineAfterImports fp tx = do
-  allLines <- liftIO $ lines <$> readTextFile fp
+  allLines <- liftIO $ DT.lines <$> readTextFile fp
   let (hdrLines, (impLines, remLines)) = second (break (not . isImp)) $ break isImp allLines
       isImp = ("import" `DT.isPrefixOf`)
   when (any (== []) [hdrLines, impLines, remLines]) $
     throwError $ "Parsing failed.  Could not add line: " ++ tx
   unless (DT.strip tx `elem` map DT.strip allLines) $ liftIO $
     writeTextFile fp $ DT.intercalate "\n" $ hdrLines ++ impLines ++ ["",tx, ""] ++ remLines
-  
+
 prependLineToFile
   :: FilePath
   -> Text           -- ^ Text to import
   -> ErrT ()
 prependLineToFile fp whatToAdd = do
   content <- liftIO $ readTextFile fp
-  unless (DT.strip whatToAdd `elem` map DT.strip (lines content)) $ liftIO $ do
+  unless (DT.strip whatToAdd `elem` map DT.strip (DT.lines content)) $ liftIO $ do
     print $ "Appending: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
     writeTextFile fp $ whatToAdd ++ "\n" ++ content
 
-  
+
 appendLineToFile
   :: FilePath
   -> Text           -- ^ Text to import
   -> ErrT ()
 appendLineToFile fp whatToAdd = do
   content <- liftIO $ readTextFile fp
-  unless (DT.strip whatToAdd `elem` map DT.strip (lines content)) $ liftIO $ do
+  unless (DT.strip whatToAdd `elem` map DT.strip (DT.lines content)) $ liftIO $ do
     print $ "Appending: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
     writeTextFile fp $ content ++ "\n" ++ whatToAdd ++ "\n"
 
@@ -388,7 +388,7 @@ addOtherModule :: FilePath -> Text -> ErrT ()
 addOtherModule fp md =
   addLineToFile fp ("other-modules" `DT.isInfixOf`) ("                     " ++ md)
 
--- | Add a module dependency to the build-depends section of the cabal file. 
+-- | Add a module dependency to the build-depends section of the cabal file.
 addDependsModule :: FilePath -> Text -> ErrT ()
 addDependsModule fp md = addLineToFile fp ("build-depends" `DT.isInfixOf`) md
 
@@ -398,14 +398,14 @@ addLineToFile
   -> Text           -- ^ Text to import
   -> ErrT ()
 addLineToFile fp whereToAdd whatToAdd = do
-  allLines <- liftIO $ lines <$> readTextFile fp
-  unless (DT.strip whatToAdd `elem` map DT.strip allLines) $ 
+  allLines <- liftIO $ DT.lines <$> readTextFile fp
+  unless (DT.strip whatToAdd `elem` map DT.strip allLines) $
     case break whereToAdd allLines of
-      (_,[]) -> 
+      (_,[]) ->
         throwError $ "malformed file: couldn't add: " ++ whatToAdd
       (prevLines, matchingLine:restOfLines) -> liftIO $ do
         print $ "Adding: " ++ whatToAdd ++ " to: " ++ either id id (toText fp)
-        writeTextFile fp . DT.intercalate "\n" $  
+        writeTextFile fp . DT.intercalate "\n" $
           prevLines ++ (matchingLine : whatToAdd : restOfLines)
 
 addHandlerModuleToCabalFile :: FilePath -> EntityDef -> ErrT ()
@@ -414,11 +414,11 @@ addHandlerModuleToCabalFile fp ed = do
       dependsLines = [ "                 , unordered-containers          >= 0.1"
                      , "                 , blaze-html                    >= 0.4.3.1"
                      , "                 , transformers                  >= 0.2.2"
-                     , "                 , aeson                         >= 0.6" ]
+                     , "                 , aeson                         >= 0.6" ] :: [Text]
   addOtherModule fp  moduleName
   addOtherModule fp  "Widgets"
   mapM_ (addDependsModule fp) dependsLines
-        
+
 genRoutes :: EntityDef -> Text
 genRoutes ed = $(codegenFile "codegen/routes.cg")
  where
@@ -447,7 +447,7 @@ imageTypeSyn :: Text ; imageTypeSyn = "type Image = BS.ByteString"
 imageCtTypeSyn :: Text ; imageCtTypeSyn = "type ImageContentType = Text"
 
 -- | Add the Country Code Imports
-addCcStuff 
+addCcStuff
   :: FilePath -- ^ model fp
   -> FilePath -- ^ cabal fp
   -> Bool     -- ^ use JSON
@@ -458,7 +458,7 @@ addCcStuff modelHsFp cabalFp useJson = do
   addImportToFile modelHsFp ccImport
   addDependsModule cabalFp "                 , iso3166-country-codes         >= 0.2"
 
-addImageStuff 
+addImageStuff
   :: FilePath -- ^ model fp
   -> FilePath -- ^ routes fp
   -> EntityDef
@@ -468,9 +468,9 @@ addImageStuff modelHsFp routesFp ed useJson = do
   addImportToFile modelHsFp bsImport
   appendLineAfterImports modelHsFp imageTypeSyn
   appendLineAfterImports modelHsFp imageCtTypeSyn
-  flds <- filter (\f -> fdType f == FtImage) <$> 
+  flds :: [FieldDesc] <- filter (\f -> fdType f == FtImage) <$>
           mapM persistFieldDefToFieldDesc (entityFields ed) -- will throw an erorr if there's a bad field
-  let appFxn fd = 
+  let appFxn fd =
         let fieldNameUpper = capitalize (fdName fd)
             fieldNameLower = fdName fd in
         appendLineToFile routesFp $(codegenFile "codegen/routes-image.cg")
@@ -479,7 +479,7 @@ addImageStuff modelHsFp routesFp ed useJson = do
   modelNameUpper = unHaskellName (entityHaskell ed)
   modelNameLower = decapitalize modelNameUpper
 
-addDayStuff 
+addDayStuff
   :: FilePath -- ^ model fp
   -> FilePath -- ^ cabal fp
   -> Bool     -- ^ True for Using JSON too
@@ -495,35 +495,35 @@ addRoutes :: FilePath -> EntityDef -> ErrT ()
 addRoutes fp ed = appendLineToFile fp $ genRoutes ed
 
 -- | anytime we're messing with an existing file, create a backup copy as a courtesy
---   to the users.  
+--   to the users.
 createBackupCopy :: FilePath -> IO ()
 createBackupCopy fp = copyRec fp (0 :: Int)
  where
   copyRec fpSrc i = do
     let fpDes = addExtension fp (show i ++ ".bak")
     exists <- isFile fpDes
-    if exists 
+    if exists
       then copyRec fpSrc (1 + i)
       else do
-        copyFile fpSrc fpDes 
+        copyFile fpSrc fpDes
         print $ ("Backed up " ++ show fpSrc ++ " to location: " ++ show fpDes :: Text)
 
 -- | _TODO whip up some parsec to parse fieldName::Int? stuff the record below
-data FieldDesc = FieldDesc { fdName :: Text , fdType :: FdType , fdNullable :: Bool } 
+data FieldDesc = FieldDesc { fdName :: Text , fdType :: FdType , fdNullable :: Bool }
   deriving (Show)
 
 addContentTypeToEd :: EntityDef -> EntityDef
-addContentTypeToEd ed = ed { entityFields = foldr foldFxn [] $ entityFields ed  }
+addContentTypeToEd ed = ed { entityFields = fold foldFxn [] (entityFields ed) }
  where
-  mkContentType fd = fd 
+  mkContentType fd = fd
     { fieldType = FTTypeCon Nothing "ImageContentType"
     , fieldHaskell = HaskellName ((unHaskellName $ fieldHaskell fd) ++ "ContentType")
     , fieldDB = DBName ((unDBName $ fieldDB fd) ++ "ContentType")
     }
-  foldFxn fd s  | fieldType fd == FTTypeCon Nothing "Image" = fd : mkContentType fd : s 
+  foldFxn s fd  | fieldType fd == FTTypeCon Nothing "Image" = fd : mkContentType fd : s
                 | otherwise = fd : s
-  
-  
+
+
 persistEntityDefToModule :: EntityDef -> Text
 persistEntityDefToModule ed = "Handler." ++ unHaskellName (entityHaskell ed)
 
@@ -537,7 +537,7 @@ persistFieldDefToFieldDesc fd = do
           t -> throwError $ "FieldType not supported: " ++ DT.pack (show t)
   return $ FieldDesc (unHaskellName $ fieldHaskell fd) tp nullable
 
-data FdType 
+data FdType
   = FtPersistReference Text
   | FtInt
   | FtBool
@@ -548,11 +548,11 @@ data FdType
   | FtDouble
   | FtImage
   | FtImageContentType
-  deriving (Show, Eq, Ord, Read)
+  deriving (Show, Eq, Ord)
 
 ftToType :: FdType -> Text
 ftToType (FtPersistReference ref) = ref ++ "Id"
-ftToType f = drop (2 :: Int) . DT.pack $ show f 
+ftToType f = drop (2 :: Int) . DT.pack $ show f
 
 textToFdType :: Text -> ErrT FdType
 textToFdType "Int" = return FtInt
@@ -577,13 +577,13 @@ formFieldForFdType FtText         = "textField  "
 formFieldForFdType FtHtml         = "htmlField  "
 formFieldForFdType FtCountryCode  = "(selectField optionsEnum)"
 formFieldForFdType FtDouble       = "doubleField"
-formFieldForFdType (FtPersistReference _) = 
+formFieldForFdType (FtPersistReference _) =
   "(selectField (optionsPersistKey [] [] (toPathPiece . entityKey)))"
-formFieldForFdType f = error $ "cannot make a from field for : " ++ (show f :: Text)
+formFieldForFdType f = error . unpack $ "cannot make a from field for : " ++ (show f :: Text)
 
 fieldForFieldDesc :: Bool -> Text -> FieldDesc -> ErrT (Maybe Text)
 fieldForFieldDesc False _ fd | fdType fd == FtImageContentType = return Nothing
-fieldForFieldDesc True _ fd  | fdType fd == FtImageContentType = 
+fieldForFieldDesc True _ fd  | fdType fd == FtImageContentType =
   throwError "Found ImageContentType as first field.  We can't handle this.  Dying"
 fieldForFieldDesc isFirst _ fd  | fdType fd == FtImage = return . Just $ concat
   [ "  ", if isFirst then "<$>" else "<*>"
@@ -607,7 +607,7 @@ checkModelName modelsFp n = do
   -- _TODO change this to conduits for good yesodkarma
   let isTbl s | length s > (0 :: Int) = not . DC.isSpace $ DT.head s
               | otherwise = False
-  models <- fmap (map (DT.filter (not . DC.isSpace)) . filter isTbl . DT.lines) 
+  models <- fmap (map (DT.filter (not . DC.isSpace)) . filter isTbl . DT.lines)
                  (liftIO $ readTextFile modelsFp)
   when (n `elem` models) . throwError $ "Model name: " ++ n ++ " already exists!"
   return ()
@@ -616,6 +616,6 @@ checkFileExists :: FilePath -> ErrT ()
 checkFileExists fp = do
   exists <- lift $ isFile fp
   unless exists . throwError $ "Missing file: " ++ either id id (toText fp)
-  return () 
- 
+  return ()
+
 instance Error Text where strMsg = DT.pack

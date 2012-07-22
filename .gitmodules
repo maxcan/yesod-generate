@@ -1,0 +1,3 @@
+[submodule "classy-prelude"]
+	path = classy-prelude
+	url = git@github.com:maxcan/classy-prelude.git
