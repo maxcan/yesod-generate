@@ -12,7 +12,7 @@
 module Main where
 
 import ClassyPrelude
-import Control.Arrow (second)
+-- import Control.Arrow (second)
 import Control.Monad.Error hiding (mapM, mapM_, lift, liftIO)
 import Control.Monad.Error.Class
 import Database.Persist.EntityDef
@@ -20,7 +20,7 @@ import Distribution.VcsRevision.Git ( getRevision )
 import Filesystem
 import Filesystem.Path hiding (concat)
 import Filesystem.Path.CurrentOS (fromText, toText)
-import Language.Haskell.TH.Syntax (runIO)
+import Language.Haskell.TH.Syntax (Exp (..), Lit (..), runIO)
 import Prelude (String)
 import System.Console.CmdArgs
 import System.IO (print)
@@ -34,7 +34,8 @@ type ErrT = ErrorT Text IO
 
 main :: IO ()
 main = do
-  command <- cmdArgsRun (cmdArgsMode $ modes [model, dumpWidgets] &= program "yesod-generate")
+  command <- cmdArgsRun (cmdArgsMode $ modes [model, dumpWidgets, versionGenerator]
+                                             &= program "yesod-generate")
   print command
   res <- runErrorT $ main_ command
   print (show res :: Text)
@@ -53,13 +54,15 @@ data Generator
     , dumpRootDir :: String }
   | Widgets
     { viewJson :: Bool }
+  | Version   
   deriving (Show, Eq, Ord, Data, Typeable)
 
-
+versionGenerator :: Generator ; versionGenerator = Version &= help "output the git revno"
 dumpWidgets :: Generator ; dumpWidgets = DumpWidgets
   { dumpPath       = "." &= explicit &= name "o" &= help "Where to dump the widgets to"
   , dumpRootDir  =   "." &= explicit &= name "root" &= help "Root directory of project"
   } &= help "Dump a widget file for an existing model"
+
 model :: Generator ; model = Model
   { modelJson      = def &= explicit &= name "j" &= help "Create JSON Instances and Routes"
   , modelRootDir =   "." &= explicit &= name "root" &= help "Root directory of project" &= opt ("." :: String)
@@ -69,6 +72,16 @@ model :: Generator ; model = Model
 
 main_ :: Generator -> ErrT ()
 main_ (Widgets _) = throwError "view not supported"
+main_ Version = liftIO $ putStrLn $ "Built against: " ++ revno
+ where
+  revno :: Text; revno = pack $(do
+    v <- runIO getRevision
+    return $ LitE $ StringL $ case v of
+          Nothing           -> "<none>"
+          Just (hash,True)  -> pack hash ++ " (with local modifications)"
+          Just (hash,False) -> pack hash
+    )
+
 main_ (DumpWidgets _dumpPath _rootDir) = do
   let rootDir   = fromText $ DT.pack _rootDir
       modelDefsFp = rootDir ++ "config/models"
