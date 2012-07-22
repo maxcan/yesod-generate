@@ -22,18 +22,18 @@ import qualified Data.Text as DT
 ~{generatedFormFields}
 ~{formWhereDefs}
 
-get~{modelNameUpper}R        :: Handler RepHtmlJson
+get~{modelNameUpper}R        :: Handler ~{jsonRep}
 post~{modelNameUpper}NewR    :: Handler RepHtml
 get~{modelNameUpper}NewR     :: Handler RepHtml
 
 post~{modelNameUpper}EditR   :: ~{modelNameUpper}Id -> Handler RepHtml
 get~{modelNameUpper}EditR    :: ~{modelNameUpper}Id -> Handler RepHtml
 post~{modelNameUpper}DeleteR :: ~{modelNameUpper}Id -> Handler RepHtml
-get~{modelNameUpper}DetailR  :: ~{modelNameUpper}Id -> Handler RepHtmlJson
+get~{modelNameUpper}DetailR  :: ~{modelNameUpper}Id -> Handler ~{jsonRep}
 
 get~{modelNameUpper}R = do
   (all~{modelNameUpper}s :: [Entity ~{modelNameUpper}]) <- runDB $ selectList [] []
-  defaultLayoutJson $(widgetFile "~{modelNameLower}/index") all~{modelNameUpper}s
+  ~{jsonLayout} $(widgetFile "~{modelNameLower}/index") ~{jsonAllModels}
 
 post~{modelNameUpper}NewR = do
   ((formResult, _), _) <- runFormPost $ ~{modelNameLower}Form Nothing
@@ -47,7 +47,7 @@ post~{modelNameUpper}NewR = do
       redirectUltDest ~{modelNameUpper}NewR
     
 get~{modelNameUpper}NewR = do
-  ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form Nothing
+  (formWidget, enctype) <- generateFormPost $ ~{modelNameLower}Form Nothing
   defaultLayout $(widgetFile "~{modelNameLower}/new")
     
 post~{modelNameUpper}EditR ~{modelNameLower}Id = do
@@ -61,7 +61,7 @@ post~{modelNameUpper}EditR ~{modelNameLower}Id = do
 
 get~{modelNameUpper}EditR ~{modelNameLower}Id = do
   ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
-  ((_, formWidget), enctype) <- generateFormPost $ ~{modelNameLower}Form (Just ~{modelNameLower})
+  (formWidget, enctype) <- generateFormPost $ ~{modelNameLower}Form (Just ~{modelNameLower})
   defaultLayout $(widgetFile "~{modelNameLower}/edit")
 
 post~{modelNameUpper}DeleteR ~{modelNameLower}Id = do 
@@ -72,5 +72,4 @@ post~{modelNameUpper}DeleteR ~{modelNameLower}Id = do
 
 get~{modelNameUpper}DetailR ~{modelNameLower}Id = do
   ~{modelNameLower} <- runDB $ get404 ~{modelNameLower}Id
-  defaultLayoutJson $(widgetFile "~{modelNameLower}/show") (Entity ~{modelNameLower}Id ~{modelNameLower})
-
+  ~{jsonLayout} $(widgetFile "~{modelNameLower}/show") ~{jsonModelDtl}

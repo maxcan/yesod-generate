@@ -160,7 +160,7 @@ main_ (Model useJson _rootDir _modelName _fields) = do
   when (FtCountryCode `elem` map fdType flds) $ addCcStuff modelModuleFp cabalFp useJson
   addHandlerModuleToCabalFile cabalFp entityDef
   addModelToModelsFile modelDefsFp modelModuleFp entityDef useJson
-  genHandlerFile handlerFp entityDef
+  genHandlerFile handlerFp entityDef useJson
   addWidgets     widgetsFp foundationDatatype entityDef
   writeTemplates
   addLineToFile appFp
@@ -308,8 +308,8 @@ addWidgets fp appType ed = do
   modelNameUpper = unHaskellName (entityHaskell ed)
   modelNameLower = decapitalize modelNameUpper
 
-genHandlerFile :: FilePath -> EntityDef -> ErrT ()
-genHandlerFile fp ed  = do
+genHandlerFile :: FilePath -> EntityDef -> Bool -> ErrT ()
+genHandlerFile fp ed useJson  = do
   flds <- mapM persistFieldDefToFieldDesc $ entityFields ed
   let
     -- Generate the Form Fields.  Because of the Image stuff, this is a bit complicated
@@ -333,6 +333,10 @@ genHandlerFile fp ed  = do
       let (b,c) = fold wrappingFoldFxn (DT.empty, DT.empty) $ zip flds [(1 :: Int)..] in
       concat [" where\n  ", boxFxn, " ", b, " = ", modelNameUpper, " ", c]
     -- Generate the dt/dd entries for the toHtml instance
+    jsonLayout :: Text = if useJson then "defualtLayoutJson" else "defaultLayout"
+    jsonRep :: Text = if useJson then "RepHtmlJson" else "RepHtml" 
+    jsonAllModels :: Text = if useJson then " all~{modelNameUpper}s" else ""
+    jsonModelDtl :: Text = if useJson then "(Entity ~{modelNameLower}Id ~{modelNameLower})" else ""
   case flds of
     [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
     hdField:tlFields -> do

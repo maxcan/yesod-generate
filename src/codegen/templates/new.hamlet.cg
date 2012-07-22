@@ -7,7 +7,7 @@
         New ~{modelNameUpper}
   < .row>
     < .span12>
-      <form method=POST action=@{~{modelNameUpper}NewR} enctype=#{enctype}
+      <form method=POST action=@{~{modelNameUpper}NewR} enctype=#{enctype}>
         ^{formWidget}
         <input type=submit>
 
