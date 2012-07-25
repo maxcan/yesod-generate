@@ -23,9 +23,11 @@ import Language.Haskell.TH.Syntax (Exp (..), Lit (..), runIO)
 import Prelude (String)
 import System.Console.CmdArgs
 import Text.Shakespeare.Text hiding (toText)
-import qualified Data.Char as DC
-import qualified Data.Maybe as DY
-import qualified Data.Text as DT
+import           Data.Time.Clock (getCurrentTime)
+import qualified Data.Char                   as DC
+import qualified Data.Maybe                  as DY
+import qualified Data.Text                   as DT
+import qualified Data.List                   as DL 
 import qualified Database.Persist.Quasi as DPQ
 
 type ErrT = ErrorT Text IO
@@ -74,10 +76,11 @@ main_ Version = liftIO $ putStrLn $ "Built against: " ++ revno
  where
   revno :: Text; revno = pack $(do
     v <- runIO getRevision
+    tm <- runIO getCurrentTime
     return $ LitE $ StringL $ case v of
-          Nothing           -> "<none>"
-          Just (hash,True)  -> pack hash ++ " (with local modifications)"
-          Just (hash,False) -> pack hash
+          Nothing           -> "<no git repo> " ++ show tm
+          Just (hash,True)  -> pack hash ++ " (with local modifications) " ++ show tm
+          Just (hash,False) -> pack hash ++ " " ++ show tm
     )
 
 main_ (DumpWidgets _dumpPath _rootDir) = do
@@ -159,6 +162,7 @@ main_ (Model useJson _rootDir _modelName _fields) = do
   when (FtImage `elem` map fdType flds) $ addImageStuff modelModuleFp routesFp entityDef useJson
   when (FtCountryCode `elem` map fdType flds) $ addCcStuff modelModuleFp cabalFp useJson
   addHandlerModuleToCabalFile cabalFp entityDef
+  addDependsModule cabalFp "                 , yesod-json"
   addModelToModelsFile modelDefsFp modelModuleFp entityDef useJson
   genHandlerFile handlerFp entityDef useJson
   addWidgets     widgetsFp foundationDatatype entityDef
@@ -318,6 +322,7 @@ genHandlerFile fp ed useJson  = do
     imageImports =
       if includesImage then bslImport ++ "\n" ++ bsImport ++ "\n" ++ dsImport ++ "\n" else "\n"
     formWhereDefs = if includesImage then wrappedBoxFxn else "\n"
+
     wrappingFoldFxn s (fd, _) | fdType fd == FtImageContentType = s
     wrappingFoldFxn (boxArgs, conArgs) (fd, elIdx) | fdNullable fd && (fdType fd == FtImage) =
       ( concat ["f", show elIdx, " ", boxArgs]
@@ -330,16 +335,20 @@ genHandlerFile fp ed useJson  = do
     wrappingFoldFxn (boxArgs, conArgs) (_, elIdx) =
       ( concat ["f", show elIdx, " ", boxArgs], concat ["f", show elIdx, " ", conArgs])
     wrappedBoxFxn =
-      let (b,c) = fold wrappingFoldFxn (DT.empty, DT.empty) $ zip flds [(1 :: Int)..] in
+      let (b,c) = fold wrappingFoldFxn (DT.empty, DT.empty) . DL.reverse $ zip flds [(1 :: Int)..] in
       concat [" where\n  ", boxFxn, " ", b, " = ", modelNameUpper, " ", c]
+
     -- Generate the dt/dd entries for the toHtml instance
-    jsonLayout :: Text = if useJson then "defualtLayoutJson" else "defaultLayout"
+    jsonLayout :: Text = if useJson then "defaultLayoutJson" else "defaultLayout"
     jsonRep :: Text = if useJson then "RepHtmlJson" else "RepHtml" 
-    jsonAllModels :: Text = if useJson then " all~{modelNameUpper}s" else ""
-    jsonModelDtl :: Text = if useJson then "(Entity ~{modelNameLower}Id ~{modelNameLower})" else ""
+    jsonAllModels :: Text = if useJson then " all" ++ modelNameUpper ++ "s" else ""
+    jsonModelDtl :: Text = if useJson 
+        then "(Entity "  ++ modelNameLower ++ "Id " ++ modelNameLower ++ ")" 
+        else ""
   case flds of
     [] -> throwError "Empty Field list.  genHandlerFile cannot handle this!"
-    hdField:tlFields -> do
+    hdField:tlFields  -> do
+    -- = DL.reverse l -- needed since we switched the code to a strict left fold
       generatedFormFields <- (("  " ++) . DT.intercalate "\n  " . DY.catMaybes) <$> liftM2 (:)
         (fieldForFieldDesc True modelNameUpper hdField)
         (mapM (fieldForFieldDesc False modelNameUpper) tlFields )
@@ -539,8 +548,8 @@ addContentTypeToEd ed = ed { entityFields = fold foldFxn [] (entityFields ed) }
     , fieldHaskell = HaskellName ((unHaskellName $ fieldHaskell fd) ++ "ContentType")
     , fieldDB = DBName ((unDBName $ fieldDB fd) ++ "ContentType")
     }
-  foldFxn s fd  | fieldType fd == FTTypeCon Nothing "Image" = fd : mkContentType fd : s
-                | otherwise = fd : s
+  foldFxn s fd  | fieldType fd == FTTypeCon Nothing "Image" = s ++ [fd , mkContentType fd]
+                | otherwise = s ++ [fd]
 
 
 persistEntityDefToModule :: EntityDef -> Text

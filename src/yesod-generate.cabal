@@ -45,6 +45,7 @@ executable             yesod-generate
                      , template-haskell
                      , vcs-revision
                      , classy-prelude
+                     , time               >= 1.4
     ghc-options:       -Wall
     if flag(threaded)
         ghc-options:    -threaded
