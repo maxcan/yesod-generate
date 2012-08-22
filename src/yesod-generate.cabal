@@ -29,23 +29,27 @@ executable             yesod-generate
         build-depends:   base                  >= 4        && < 4.3
     if os(windows)
         cpp-options:     -DWINDOWS
-    extensions:         NoImplicitPrelude
-                    ,   FlexibleInstances
+    extensions:       NoImplicitPrelude
+                    , FlexibleInstances
+                    , MultiParamTypeClasses
                     , ScopedTypeVariables
-    build-depends:     attoparsec         >= 0.10
-                     , text               >= 0.11         && < 0.12
-                     , monads-tf
-                     , system-filepath
-                     , system-fileio
-                     , directory
-                     , persistent         >= 0.9          && < 1.0
-                     , bytestring
-                     , cmdargs            >= 0.9.3
-                     , shakespeare-text   >= 0.11
-                     , template-haskell
-                     , vcs-revision
-                     , classy-prelude
-                     , time               >= 1.4
+
+    build-depends:    attoparsec         >= 0.10
+                    , text               >= 0.11         && < 0.12
+                    , monads-tf
+                    , system-filepath
+                    , system-fileio
+                    , directory
+                    , persistent         >= 0.9          && < 1.0
+                    , bytestring
+                    , cmdargs            >= 0.9.3
+                    , shakespeare-text   >= 0.11
+                    , template-haskell
+                    , vcs-revision
+                    , classy-prelude        >= 0.2
+                    , basic-prelude         >= 0.2
+                    , time               >= 1.4
+                    , shelly
     ghc-options:       -Wall
     if flag(threaded)
         ghc-options:    -threaded

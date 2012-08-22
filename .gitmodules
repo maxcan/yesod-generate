@@ -1,3 +1,9 @@
 [submodule "classy-prelude"]
 	path = classy-prelude
 	url = git@github.com:maxcan/classy-prelude.git
+[submodule "basic-prelude"]
+	path = basic-prelude
+	url = git@github.com:snoyberg/basic-prelude.git
+[submodule "Shelly.hs"]
+	path = Shelly.hs
+	url = https://github.com/yesodweb/Shelly.hs.git
